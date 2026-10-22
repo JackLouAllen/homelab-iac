@@ -17,4 +17,6 @@ terraform {
 provider "oci" {
   region              = var.region
   config_file_profile = var.oci_profile
+  private_key_path     = var.oci_private_key_path
+  private_key_password = var.oci_private_key_password
 }

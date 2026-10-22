@@ -14,6 +14,15 @@ variable "oci_profile" {
   default     = "DEFAULT"
 }
 
+variable "oci_private_key_path" {
+  type = string
+}
+
+variable "oci_private_key_password" {
+  type      = string
+  sensitive = true
+}
+
 # --- Image ---
 
 variable "image_path" {
