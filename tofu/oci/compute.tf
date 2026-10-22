@@ -52,7 +52,8 @@ resource "oci_core_instance" "oci1" {
 
   lifecycle {
     # Importing a newer image or editing cloud-init must not silently rebuild the host.
-    ignore_changes = [source_details[0].source_id, metadata]
+    # In-transit encryption can only be set at launch; it applies on the next rebuild.
+    ignore_changes = [source_details[0].source_id, metadata, is_pv_encryption_in_transit_enabled]
   }
 }
 
