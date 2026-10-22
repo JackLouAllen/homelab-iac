@@ -13,7 +13,7 @@ resource "oci_objectstorage_bucket" "images" {
 # Uploads the QCOW2 from your machine. Large files go up as multipart automatically.
 resource "oci_objectstorage_object" "rhel10" {
   namespace    = data.oci_objectstorage_namespace.ns.namespace
-  bucket       = oci_objectstorage_bucket.images.name
+  bucket       = time_sleep.bucket_ready.triggers["bucket"]
   object       = "rhel-10-aarch64-${var.image_version}.qcow2"
   source       = var.image_path
   content_type = "application/octet-stream"
@@ -71,4 +71,11 @@ resource "oci_core_shape_management" "a1" {
   compartment_id = local.compartment_id
   image_id       = oci_core_image.rhel10.id
   shape_name     = "VM.Standard.A1.Flex"
+}
+
+resource "time_sleep" "bucket_ready" {
+  create_duration = "30s"
+  triggers = {
+    bucket = oci_objectstorage_bucket.images.name
+  }
 }
