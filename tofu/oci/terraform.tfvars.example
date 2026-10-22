@@ -1,6 +1,5 @@
-tenancy_ocid     = "ocid1.tenancy.oc1..xxxx"
-compartment_ocid = "ocid1.compartment.oc1..xxxx"
-region           = "us-ashburn-1"
+tenancy_ocid = "ocid1.tenancy.oc1..xxxx"
+region       = "us-ashburn-1"
 
 image_path    = "/path/to/rhel-10-aarch64.qcow2"
 image_version = "2026-10-22"

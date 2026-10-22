@@ -17,6 +17,11 @@ resource "oci_objectstorage_object" "rhel10" {
   object       = "rhel-10-aarch64-${var.image_version}.qcow2"
   source       = var.image_path
   content_type = "application/octet-stream"
+
+  # Upload once; later plans don't need the local QCOW2. Bump image_version for a new build.
+  lifecycle {
+    ignore_changes = [source]
+  }
 }
 
 resource "oci_core_image" "rhel10" {
