@@ -1,0 +1,135 @@
+{
+  "content_sources": [],
+  "customizations": {
+    "disk": {
+      "minsize": "60 GiB",
+      "partitions": [
+        {
+          "type": "plain",
+          "fs_type": "xfs",
+          "minsize": "1 GiB",
+          "mountpoint": "/boot"
+        },
+        {
+          "type": "plain",
+          "fs_type": "vfat",
+          "minsize": "600 MiB",
+          "mountpoint": "/boot/efi"
+        },
+        {
+          "name": "rhel",
+          "type": "lvm",
+          "minsize": "58 GiB",
+          "logical_volumes": [
+            {
+              "name": "root",
+              "fs_type": "xfs",
+              "minsize": "10 GiB",
+              "mountpoint": "/"
+            },
+            {
+              "name": "home",
+              "fs_type": "xfs",
+              "minsize": "2 GiB",
+              "mountpoint": "/home"
+            },
+            {
+              "name": "tmp",
+              "fs_type": "xfs",
+              "minsize": "2 GiB",
+              "mountpoint": "/tmp"
+            },
+            {
+              "name": "var",
+              "fs_type": "xfs",
+              "minsize": "10 GiB",
+              "mountpoint": "/var"
+            },
+            {
+              "name": "var_tmp",
+              "fs_type": "xfs",
+              "minsize": "2 GiB",
+              "mountpoint": "/var/tmp"
+            },
+            {
+              "name": "var_log",
+              "fs_type": "xfs",
+              "minsize": "4 GiB",
+              "mountpoint": "/var/log"
+            },
+            {
+              "name": "var_log_audit",
+              "fs_type": "xfs",
+              "minsize": "2 GiB",
+              "mountpoint": "/var/log/audit"
+            },
+            {
+              "name": "swap",
+              "fs_type": "swap",
+              "minsize": "4 GiB",
+              "mountpoint": ""
+            }
+          ]
+        }
+      ]
+    },
+    "firewall": {
+      "services": {
+        "enabled": [
+          "ssh"
+        ],
+        "disabled": [
+          "cockpit",
+          "dhcpv6-client"
+        ]
+      }
+    },
+    "kernel": {
+      "append": "audit=1 audit_backlog_limit=8192 console=ttyAMA0,115200"
+    },
+    "locale": {
+      "keyboard": "us",
+      "languages": [
+        "en_US.UTF-8"
+      ]
+    },
+    "packages": [
+      "langpacks-en"
+    ],
+    "services": {
+      "enabled": [
+        "sshd",
+        "chronyd",
+        "firewalld",
+        "cloud-init"
+      ],
+      "masked": [
+        "debug-shell.service"
+      ],
+      "disabled": [
+        "cockpit.socket"
+      ]
+    },
+    "timezone": {
+      "timezone": "Etc/UTC"
+    },
+    "users": [
+      {
+        "groups": [
+          "wheel"
+        ],
+        "hasPassword": true,
+        "name": "JackL",
+        "ssh_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIClXUJ3SEEb08DvTJ8/94JBptlXOtDAiYjREB5z7zQQp jack-breakglass-2026-10"
+      }
+    ]
+  },
+  "description": "",
+  "distribution": "rhel-10",
+  "metadata": {
+    "exported_at": "2026-10-22 21:26:56.557930962 +0000 UTC",
+    "is_on_prem": false,
+    "parent_id": "dbfcf1f9-f9dc-4a8a-ad44-5da3b20d3f7a"
+  },
+  "name": "rhel-10-aarch64-20261022-v2"
+}

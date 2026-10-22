@@ -5,3 +5,11 @@ users: []
 disable_root: true
 ssh_pwauth: false
 preserve_hostname: true
+
+# disable_root only locks root's authorized_keys; sshd still defaults to without-password.
+write_files:
+  - path: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root:root
+    permissions: "0600"
+    content: |
+      PermitRootLogin no

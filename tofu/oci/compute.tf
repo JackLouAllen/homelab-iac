@@ -42,6 +42,9 @@ resource "oci_core_instance" "oci1" {
 
   preserve_boot_volume = false
 
+  # Encrypt boot and paravirtualized volume traffic between host and storage.
+  is_pv_encryption_in_transit_enabled = true
+
   depends_on = [
     oci_core_compute_image_capability_schema.rhel10,
     oci_core_shape_management.a1,
