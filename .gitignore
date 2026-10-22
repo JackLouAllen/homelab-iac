@@ -1,0 +1,36 @@
+# OpenTofu state holds IPs and secrets
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+crash.log
+crash.*.log
+
+# Variables (examples are safe to commit)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local-only overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Image builds (keep in the bucket, not Git)
+*.qcow2
+*.raw
+*.img
+*.iso
+
+# Keys and secrets
+*.pem
+*.key
+age.key
+.env
+.vault_pass*
+*.dec.*
+*.decrypted.*
+
+# Ansible
+*.retry

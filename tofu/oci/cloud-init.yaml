@@ -1,0 +1,7 @@
+#cloud-config
+# The image already has the admin user and the break-glass key.
+# Don't let cloud-init add a cloud-user account; hostname is Ansible's job.
+users: []
+disable_root: true
+ssh_pwauth: false
+preserve_hostname: true
