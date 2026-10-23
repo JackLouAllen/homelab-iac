@@ -37,3 +37,8 @@ age-yubikey-identity-*.txt
 *.retry
 # Real inventory; commit only hosts.example.yml
 ansible/inventory/hosts.yml
+
+# Raw OpenSCAP output embeds /etc/shadow lines and host addresses; commit only
+# copies produced by scripts/redact-openscap-report.py
+reports/openscap/*-cis-report.html
+reports/openscap/*-cis-results.xml
