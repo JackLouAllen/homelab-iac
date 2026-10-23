@@ -24,6 +24,9 @@ baseline_chrony_servers: []
 baseline_lvm_disk: /dev/sda
 baseline_lvm_partition_number: 3
 baseline_lvm_pv: /dev/sda3
+baseline_lvm_vg: rhel
+# Final sizes, e.g. {name: var, size: 18g}; lvol refuses to shrink.
+baseline_lvm_volumes: []
 
 # Empty skips the data volume.
 baseline_data_device: ""

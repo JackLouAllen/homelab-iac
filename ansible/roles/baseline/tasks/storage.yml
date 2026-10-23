@@ -18,6 +18,14 @@
   when: (baseline_pvs.stdout.split()[1] | int) - (baseline_pvs.stdout.split()[0] | int) > 8388608
   changed_when: true
 
+- name: Extend logical volumes
+  community.general.lvol:
+    vg: "{{ baseline_lvm_vg }}"
+    lv: "{{ item.name }}"
+    size: "{{ item.size }}"
+    resizefs: true
+  loop: "{{ baseline_lvm_volumes }}"
+
 - name: Data volume
   when: baseline_data_device | length > 0
   block:
