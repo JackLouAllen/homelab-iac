@@ -1,0 +1,36 @@
+---
+- name: Install OpenSCAP
+  ansible.builtin.dnf:
+    name:
+      - openscap-scanner
+      - scap-security-guide
+    state: present
+
+# oscap exits 2 when any rule fails.
+- name: Run the CIS scan
+  ansible.builtin.command: >-
+    oscap xccdf eval
+    --profile {{ baseline_openscap_profile }}
+    --results /tmp/{{ inventory_hostname }}-cis-results.xml
+    --report /tmp/{{ inventory_hostname }}-cis-report.html
+    {{ baseline_openscap_datastream }}
+  register: baseline_oscap
+  changed_when: true
+  failed_when: baseline_oscap.rc not in [0, 2]
+
+- name: Fetch the scan reports
+  ansible.builtin.fetch:
+    src: "/tmp/{{ inventory_hostname }}-cis-{{ item }}"
+    dest: "{{ baseline_openscap_report_dir }}/"
+    flat: true
+  loop:
+    - report.html
+    - results.xml
+
+- name: Remove the scan files from the host
+  ansible.builtin.file:
+    path: "/tmp/{{ inventory_hostname }}-cis-{{ item }}"
+    state: absent
+  loop:
+    - report.html
+    - results.xml

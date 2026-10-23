@@ -1,0 +1,36 @@
+---
+baseline_packages:
+  - firewalld
+  - chrony
+  - lvm2
+  - cloud-utils-growpart
+  - policycoreutils-python-utils
+
+baseline_admin_user: JackL
+# Public keys only, e.g. the YubiKey ed25519-sk key.
+baseline_admin_authorized_keys: []
+
+baseline_firewalld_remove_services:
+  - cockpit
+  - dhcpv6-client
+
+# Leave false until Tailscale is up; the role asserts the interface exists.
+baseline_ssh_tailscale_only: false
+baseline_tailscale_interface: tailscale0
+baseline_tailscale_zone: trusted
+
+baseline_chrony_servers: []
+
+baseline_lvm_disk: /dev/sda
+baseline_lvm_partition_number: 3
+baseline_lvm_pv: /dev/sda3
+
+# Empty skips the data volume.
+baseline_data_device: ""
+baseline_data_label: data
+baseline_data_mountpoint: /srv
+baseline_data_mount_opts: nodev,nosuid
+
+baseline_openscap_profile: xccdf_org.ssgproject.content_profile_cis
+baseline_openscap_datastream: /usr/share/xml/scap/ssg/content/ssg-rhel10-ds.xml
+baseline_openscap_report_dir: "{{ playbook_dir }}/../../reports/openscap"

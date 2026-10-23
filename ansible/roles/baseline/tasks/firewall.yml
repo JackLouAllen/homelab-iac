@@ -1,0 +1,37 @@
+---
+- name: Enable firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Remove unneeded firewalld services
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: disabled
+  loop: "{{ baseline_firewalld_remove_services }}"
+
+- name: Limit SSH to Tailscale
+  when: baseline_ssh_tailscale_only
+  block:
+    - name: Refuse to lock ourselves out without a Tailscale interface
+      ansible.builtin.assert:
+        that: baseline_tailscale_interface in ansible_facts.interfaces
+        fail_msg: "{{ baseline_tailscale_interface }} is missing; bring Tailscale up first."
+
+    - name: Trust the Tailscale interface
+      ansible.posix.firewalld:
+        zone: "{{ baseline_tailscale_zone }}"
+        interface: "{{ baseline_tailscale_interface }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Remove SSH from the default zone
+      ansible.posix.firewalld:
+        service: ssh
+        permanent: true
+        immediate: true
+        state: disabled

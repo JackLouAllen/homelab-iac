@@ -1,0 +1,4 @@
+# Managed by Ansible
+{% for server in baseline_chrony_servers %}
+server {{ server }} iburst
+{% endfor %}

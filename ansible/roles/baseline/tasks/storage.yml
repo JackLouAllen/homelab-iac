@@ -1,0 +1,41 @@
+---
+# growpart exits 1 when there is nothing to grow.
+- name: Grow the LVM partition into free disk space
+  ansible.builtin.command: growpart {{ baseline_lvm_disk }} {{ baseline_lvm_partition_number }}
+  register: baseline_growpart
+  changed_when: baseline_growpart.rc == 0
+  failed_when: baseline_growpart.rc not in [0, 1]
+
+- name: Read the physical volume and device sizes
+  ansible.builtin.command: pvs --noheadings --nosuffix --units b -o pv_size,dev_size {{ baseline_lvm_pv }}
+  register: baseline_pvs
+  changed_when: false
+  check_mode: false
+
+# pvresize always reports a change; skip it unless the device has spare room.
+- name: Resize the physical volume
+  ansible.builtin.command: pvresize {{ baseline_lvm_pv }}
+  when: (baseline_pvs.stdout.split()[1] | int) - (baseline_pvs.stdout.split()[0] | int) > 8388608
+  changed_when: true
+
+- name: Data volume
+  when: baseline_data_device | length > 0
+  block:
+    - name: Create the data filesystem
+      community.general.filesystem:
+        dev: "{{ baseline_data_device }}"
+        fstype: xfs
+        opts: -L {{ baseline_data_label }}
+
+    - name: Mount the data volume
+      ansible.posix.mount:
+        path: "{{ baseline_data_mountpoint }}"
+        src: LABEL={{ baseline_data_label }}
+        fstype: xfs
+        opts: "{{ baseline_data_mount_opts }}"
+        state: mounted
+
+    - name: Label the mount point root
+      ansible.builtin.command: restorecon -v {{ baseline_data_mountpoint }}
+      register: baseline_restorecon
+      changed_when: baseline_restorecon.stdout | length > 0

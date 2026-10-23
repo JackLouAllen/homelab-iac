@@ -1,0 +1,5 @@
+---
+- name: Baseline every host
+  hosts: all
+  roles:
+    - baseline

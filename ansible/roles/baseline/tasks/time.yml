@@ -1,0 +1,40 @@
+---
+- name: Enable chronyd
+  ansible.builtin.service:
+    name: chronyd
+    state: started
+    enabled: true
+
+# Stock chrony.conf has no drop-in directory; sourcedir loads only *.sources.
+- name: Read time sources from /etc/chrony.d
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    line: sourcedir /etc/chrony.d
+    insertafter: ^sourcedir /run/chrony-dhcp
+  when: baseline_chrony_servers | length > 0
+  notify: Restart chronyd
+
+- name: Create the chrony drop-in directory
+  ansible.builtin.file:
+    path: /etc/chrony.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: baseline_chrony_servers | length > 0
+
+- name: Configure time sources
+  ansible.builtin.template:
+    src: chrony-homelab.sources.j2
+    dest: /etc/chrony.d/homelab.sources
+    owner: root
+    group: root
+    mode: "0644"
+  when: baseline_chrony_servers | length > 0
+  notify: Restart chronyd
+
+- name: Remove the unused homelab.conf drop-in
+  ansible.builtin.file:
+    path: /etc/chrony.d/homelab.conf
+    state: absent
+  notify: Restart chronyd

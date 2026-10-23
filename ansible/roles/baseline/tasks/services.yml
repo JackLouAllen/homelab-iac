@@ -1,0 +1,24 @@
+---
+# service_facts doesn't list socket units, so tolerate only "unit not found".
+- name: Disable cockpit.socket
+  ansible.builtin.systemd_service:
+    name: cockpit.socket
+    enabled: false
+    state: stopped
+  register: baseline_cockpit
+  failed_when:
+    - baseline_cockpit is failed
+    - "'Could not find the requested service' not in baseline_cockpit.msg | default('')"
+
+# systemctl mask won't replace the reboot.target alias, so link to /dev/null.
+- name: Mask ctrl-alt-del.target
+  ansible.builtin.file:
+    path: /etc/systemd/system/ctrl-alt-del.target
+    src: /dev/null
+    state: link
+    force: true
+  notify: Reload systemd
+
+- name: Set the hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"

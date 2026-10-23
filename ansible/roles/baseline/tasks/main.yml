@@ -1,0 +1,35 @@
+---
+- name: Check the host is supported
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == "RedHat"
+      - ansible_facts.distribution_major_version == "10"
+    fail_msg: The baseline role targets RHEL 10.
+
+- name: Install baseline packages
+  ansible.builtin.import_tasks: packages.yml
+  tags: packages
+
+- name: Storage
+  ansible.builtin.import_tasks: storage.yml
+  tags: storage
+
+- name: SSH
+  ansible.builtin.import_tasks: ssh.yml
+  tags: ssh
+
+- name: Services
+  ansible.builtin.import_tasks: services.yml
+  tags: services
+
+- name: Firewall
+  ansible.builtin.import_tasks: firewall.yml
+  tags: firewall
+
+- name: Time
+  ansible.builtin.import_tasks: time.yml
+  tags: time
+
+- name: OpenSCAP CIS scan
+  ansible.builtin.import_tasks: openscap.yml
+  tags: [never, openscap]

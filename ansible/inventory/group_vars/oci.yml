@@ -1,0 +1,7 @@
+---
+# Oracle's link-local NTP source.
+baseline_chrony_servers:
+  - 169.254.169.254
+
+baseline_data_device: /dev/sdb
+baseline_data_mountpoint: /srv

@@ -35,3 +35,5 @@ age-yubikey-identity-*.txt
 
 # Ansible
 *.retry
+# Real inventory; commit only hosts.example.yml
+ansible/inventory/hosts.yml

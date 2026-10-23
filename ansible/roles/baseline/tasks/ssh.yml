@@ -1,0 +1,17 @@
+---
+- name: Harden sshd
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload sshd
+
+- name: Add the extra admin authorized keys
+  ansible.posix.authorized_key:
+    user: "{{ baseline_admin_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ baseline_admin_authorized_keys }}"

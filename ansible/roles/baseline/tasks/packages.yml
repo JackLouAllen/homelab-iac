@@ -1,0 +1,16 @@
+---
+- name: Install baseline packages
+  ansible.builtin.dnf:
+    name: "{{ baseline_packages }}"
+    state: present
+
+# Confined insights-client can write dnf.log but not create it.
+- name: Create dnf.log so the SELinux-confined insights-client can write it
+  ansible.builtin.file:
+    path: /var/log/dnf.log
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
