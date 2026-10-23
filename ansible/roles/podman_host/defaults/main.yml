@@ -1,0 +1,14 @@
+---
+podman_host_packages:
+  - podman
+  - passt
+  - systemd-container
+
+# Service homes live on the data volume so images and volumes do not fill /home.
+podman_host_home_root: /srv/containers
+
+# One rootless account per service. uid and subid_start are fixed in Git because /srv
+# survives rebuilds: file ownership inside volumes follows these numbers.
+# Example: {name: keycloak, uid: 2001, subid_start: 200000}
+podman_host_service_users: []
+podman_host_subid_count: 65536

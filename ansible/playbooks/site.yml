@@ -3,4 +3,5 @@
   hosts: all
   roles:
     - baseline
-    - tailscale
+    - {role: tailscale, tags: [tailscale]}
+    - {role: podman_host, tags: [podman_host]}

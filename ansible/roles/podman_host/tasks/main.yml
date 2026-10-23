@@ -1,0 +1,86 @@
+---
+- name: Install Podman
+  ansible.builtin.dnf:
+    name: "{{ podman_host_packages }}"
+    state: present
+
+- name: Create the service home directory root
+  ansible.builtin.file:
+    path: "{{ podman_host_home_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Rootless Podman expects home directory labels. Without this, /srv contents are var_t.
+- name: Read local file context rules
+  ansible.builtin.command: semanage fcontext --list --locallist
+  register: podman_host_fcontext
+  changed_when: false
+  check_mode: false
+
+- name: Label service homes like /home
+  ansible.builtin.command: semanage fcontext --add --equal /home {{ podman_host_home_root }}
+  when: (podman_host_home_root ~ ' = /home') not in podman_host_fcontext.stdout
+  register: podman_host_fcontext_added
+  changed_when: true
+
+- name: Apply the labels  # noqa: no-handler
+  ansible.builtin.command: restorecon -R {{ podman_host_home_root }}
+  when: podman_host_fcontext_added is changed
+  changed_when: true
+
+- name: Reserve subordinate ID ranges
+  ansible.builtin.lineinfile:
+    path: "{{ item.0 }}"
+    regexp: "^{{ item.1.name }}:"
+    line: "{{ item.1.name }}:{{ item.1.subid_start }}:{{ podman_host_subid_count }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ ['/etc/subuid', '/etc/subgid'] | product(podman_host_service_users) | list }}"
+  loop_control:
+    label: "{{ item.0 }} {{ item.1.name }}"
+
+- name: Create the service groups
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    gid: "{{ item.uid }}"
+  loop: "{{ podman_host_service_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create the service users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    uid: "{{ item.uid }}"
+    group: "{{ item.name }}"
+    home: "{{ podman_host_home_root }}/{{ item.name }}"
+    create_home: true
+    shell: /sbin/nologin
+    password_lock: true
+    comment: "{{ item.name }} rootless containers"
+  loop: "{{ podman_host_service_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# Lets the user's systemd instance, and so its Quadlet units, run without a login session.
+- name: Enable lingering
+  ansible.builtin.command: loginctl enable-linger {{ item.name }}
+  args:
+    creates: /var/lib/systemd/linger/{{ item.name }}
+  loop: "{{ podman_host_service_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create the Quadlet directories
+  ansible.builtin.file:
+    path: "{{ podman_host_home_root }}/{{ item.name }}/.config/containers/systemd"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0700"
+  loop: "{{ podman_host_service_users }}"
+  loop_control:
+    label: "{{ item.name }}"
