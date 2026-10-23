@@ -1,0 +1,73 @@
+---
+- name: Check the host is supported
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == "RedHat"
+      - ansible_facts.distribution_major_version == "10"
+      - cis_admin_user in cis_ssh_allow_users
+    fail_msg: The cis role targets RHEL 10 and must keep the admin user in AllowUsers.
+
+- name: Load the SOPS secrets
+  community.sops.load_vars:
+    file: "{{ cis_secrets_file }}"
+    name: cis_secrets
+  when: cis_secrets_file | length > 0
+  no_log: true
+  tags: always
+
+- name: Packages and package manager
+  ansible.builtin.import_tasks: packages.yml
+  tags: [cis_packages]
+
+- name: Banners
+  ansible.builtin.import_tasks: banners.yml
+  tags: [cis_banners]
+
+- name: Mount options
+  ansible.builtin.import_tasks: mounts.yml
+  tags: [cis_mounts]
+
+- name: Kernel modules, sysctl and core dumps
+  ansible.builtin.import_tasks: kernel.yml
+  tags: [cis_kernel]
+
+- name: Accounts
+  ansible.builtin.import_tasks: accounts.yml
+  tags: [cis_accounts]
+
+- name: PAM
+  ansible.builtin.import_tasks: pam.yml
+  when: cis_manage_pam
+  tags: [cis_pam]
+
+- name: Sudo
+  ansible.builtin.import_tasks: sudo.yml
+  tags: [cis_sudo]
+
+- name: SSH and crypto policy
+  ansible.builtin.import_tasks: ssh.yml
+  tags: [cis_ssh]
+
+- name: Logging
+  ansible.builtin.import_tasks: logging.yml
+  tags: [cis_logging]
+
+- name: Services and firewall
+  ansible.builtin.import_tasks: services.yml
+  tags: [cis_services]
+
+- name: File permissions
+  ansible.builtin.import_tasks: files.yml
+  tags: [cis_files]
+
+- name: Boot loader and root password
+  ansible.builtin.import_tasks: boot.yml
+  tags: [cis_boot]
+
+- name: Audit rules
+  ansible.builtin.import_tasks: audit.yml
+  tags: [cis_audit]
+
+- name: File integrity
+  ansible.builtin.import_tasks: aide.yml
+  tags: [cis_aide]

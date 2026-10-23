@@ -1,0 +1,11 @@
+---
+- name: Set the login banners
+  ansible.builtin.copy:
+    content: "{{ cis_banner_text }}\n"
+    dest: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - /etc/issue
+    - /etc/issue.net

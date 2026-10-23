@@ -1,0 +1,53 @@
+---
+- name: Set login.defs password aging and umask
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: "^#?{{ item.key }}\\s"
+    line: "{{ item.key }} {{ item.value }}"
+  loop:
+    - {key: PASS_MAX_DAYS, value: "{{ cis_password_max_days }}"}
+    - {key: PASS_MIN_DAYS, value: "{{ cis_password_min_days }}"}
+    - {key: UMASK, value: "{{ cis_umask }}"}
+
+- name: Apply password aging to the admin user
+  ansible.builtin.user:
+    name: "{{ cis_admin_user }}"
+    password_expire_max: "{{ cis_password_max_days }}"
+    password_expire_min: "{{ cis_password_min_days }}"
+
+- name: Disable accounts after password expiry
+  ansible.builtin.lineinfile:
+    path: /etc/default/useradd
+    regexp: ^INACTIVE=
+    line: INACTIVE={{ cis_password_inactive_days }}
+
+- name: Set the shell umask
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: ^(\s*umask)\s+\d+\s*$
+    replace: \1 {{ cis_umask }}
+  loop:
+    - /etc/profile
+    - /etc/bashrc
+
+- name: Set the idle shell timeout
+  ansible.builtin.copy:
+    content: |
+      readonly TMOUT={{ cis_tmout }}
+      export TMOUT
+    dest: /etc/profile.d/cis-tmout.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the empty su group
+  ansible.builtin.group:
+    name: "{{ cis_su_group }}"
+    state: present
+
+- name: Restrict su to that group
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: ^#?auth\s+required\s+pam_wheel\.so
+    line: auth            required        pam_wheel.so use_uid group={{ cis_su_group }}
+    insertbefore: ^auth\s+substack

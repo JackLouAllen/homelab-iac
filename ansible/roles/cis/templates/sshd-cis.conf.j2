@@ -1,0 +1,14 @@
+# Managed by Ansible
+Banner /etc/issue.net
+LogLevel VERBOSE
+PermitEmptyPasswords no
+PermitUserEnvironment no
+HostbasedAuthentication no
+IgnoreRhosts yes
+GSSAPIAuthentication no
+DisableForwarding yes
+MaxSessions 10
+MaxStartups 10:30:60
+ClientAliveInterval {{ cis_ssh_client_alive_interval }}
+ClientAliveCountMax {{ cis_ssh_client_alive_count_max }}
+AllowUsers {{ cis_ssh_allow_users | join(' ') }}

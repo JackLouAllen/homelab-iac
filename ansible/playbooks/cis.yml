@@ -1,0 +1,5 @@
+---
+- name: Apply CIS remediation
+  hosts: all
+  roles:
+    - cis

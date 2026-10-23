@@ -1,0 +1,32 @@
+---
+- name: Configure journald
+  ansible.builtin.copy:
+    content: |
+      [Journal]
+      Storage=persistent
+      Compress=yes
+      ForwardToSyslog=no
+    dest: /etc/systemd/journald.conf.d/60-cis.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set the rsyslog default file mode
+  ansible.builtin.copy:
+    content: |
+      $FileCreateMode 0640
+    dest: /etc/rsyslog.d/60-cis.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Stop rsyslog so journald is the only logger
+  ansible.builtin.systemd_service:
+    name: rsyslog.service
+    enabled: false
+    state: stopped
+  register: cis_rsyslog
+  failed_when:
+    - cis_rsyslog is failed
+    - "'Could not find the requested service' not in cis_rsyslog.msg | default('')"
+  when: cis_disable_rsyslog

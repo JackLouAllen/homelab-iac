@@ -1,0 +1,35 @@
+---
+- name: Add the CIS sshd settings
+  ansible.builtin.template:
+    src: sshd-cis.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-cis.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload sshd (cis)
+
+- name: Create the crypto policy modules
+  ansible.builtin.copy:
+    content: "{{ item.content }}\n"
+    dest: /etc/crypto-policies/policies/modules/{{ item.name }}.pmod
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {name: NO-SSHCBC, content: "cipher@SSH = -*-CBC"}
+    - {name: NO-SSHWEAKCIPHERS, content: "cipher@SSH = -3DES-CBC -AES-128-CBC -AES-192-CBC -AES-256-CBC"}
+    - {name: NO-SSHWEAKMACS, content: "mac@SSH = -HMAC-MD5* -UMAC-64* -UMAC-128* -HMAC-SHA1*"}
+    - {name: NO-WEAKMAC, content: "mac = -*-128*"}
+
+- name: Read the crypto policy
+  ansible.builtin.command: update-crypto-policies --show
+  register: cis_crypto_current
+  changed_when: false
+  check_mode: false
+
+- name: Apply the crypto policy
+  ansible.builtin.command: update-crypto-policies --set {{ cis_crypto_policy }}
+  when: cis_crypto_current.stdout != cis_crypto_policy
+  changed_when: true
+  notify: Reload sshd (cis)

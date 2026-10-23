@@ -1,0 +1,64 @@
+---
+- name: Configure auditd.conf
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: "^\\s*{{ item.key }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+  loop:
+    - {key: space_left_action, value: "{{ cis_auditd_space_left_action }}"}
+    - {key: admin_space_left_action, value: "{{ cis_auditd_admin_space_left_action }}"}
+    - {key: max_log_file_action, value: "{{ cis_auditd_max_log_file_action }}"}
+    - {key: disk_full_action, value: "{{ cis_auditd_disk_full_action }}"}
+    - {key: disk_error_action, value: "{{ cis_auditd_disk_error_action }}"}
+  notify: Load audit rules
+
+- name: Find setuid and setgid programs
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      findmnt -n -l -k -it "$(awk '/nodev/ { print $2 }' /proc/filesystems | paste -sd,)" -o TARGET,OPTIONS \
+        | grep -Pv 'noexec|nosuid' | awk '{print $1}' \
+        | while read -r part; do find "$part" -xdev -perm /6000 -type f 2>/dev/null; done | sort -u
+    executable: /bin/bash
+  register: cis_privileged
+  changed_when: false
+  check_mode: false
+
+- name: Continue loading audit rules after errors
+  ansible.builtin.copy:
+    content: |
+      -c
+    dest: /etc/audit/rules.d/05-cis-continue.rules
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Load audit rules
+
+- name: Install the CIS audit rules
+  ansible.builtin.template:
+    src: audit-cis.rules.j2
+    dest: /etc/audit/rules.d/50-cis.rules
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Load audit rules
+
+- name: Audit privileged commands
+  ansible.builtin.template:
+    src: audit-privileged.rules.j2
+    dest: /etc/audit/rules.d/60-cis-privileged.rules
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Load audit rules
+
+- name: Make audit rules immutable
+  ansible.builtin.copy:
+    content: |
+      -e 2
+    dest: /etc/audit/rules.d/99-cis-immutable.rules
+    owner: root
+    group: root
+    mode: "0600"
+  when: cis_audit_immutable
+  notify: Load audit rules

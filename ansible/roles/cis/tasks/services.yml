@@ -1,0 +1,20 @@
+---
+- name: Mask unneeded services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    masked: true
+    enabled: false
+    state: stopped
+  loop: "{{ cis_masked_units }}"
+  register: cis_mask
+  failed_when:
+    - cis_mask is failed
+    - "'Could not find the requested service' not in cis_mask.msg | default('')"
+
+- name: Trust loopback traffic
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: lo
+    permanent: true
+    immediate: true
+    state: enabled

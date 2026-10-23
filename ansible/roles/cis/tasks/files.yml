@@ -1,0 +1,65 @@
+---
+- name: Restrict cron and at to listed users
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - /etc/cron.allow
+    - /etc/at.allow
+
+- name: Remove cron.deny
+  ansible.builtin.file:
+    path: /etc/cron.deny
+    state: absent
+
+- name: Lock down cron files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /etc/crontab, mode: "0600"}
+    - {path: /etc/cron.d, mode: "0700"}
+    - {path: /etc/cron.hourly, mode: "0700"}
+    - {path: /etc/cron.daily, mode: "0700"}
+    - {path: /etc/cron.weekly, mode: "0700"}
+    - {path: /etc/cron.monthly, mode: "0700"}
+
+- name: Find boot loader files
+  ansible.builtin.find:
+    paths: /boot/grub2
+    file_type: file
+  register: cis_grub_files
+
+- name: Restrict boot loader file permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: u-xs,g-rwxs,o-rwxt
+  loop: "{{ cis_grub_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Find user shell init files
+  ansible.builtin.find:
+    paths: /home
+    patterns: ^\.[\w\- ]+$
+    use_regex: true
+    hidden: true
+    depth: 2
+    recurse: true
+    file_type: file
+  register: cis_init_files
+
+- name: Restrict user shell init files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: u-s,g-wxs,o=
+  loop: "{{ cis_init_files.files | selectattr('path', 'match', '^/home/[^/]+/[^/]+$') | list }}"
+  loop_control:
+    label: "{{ item.path }}"

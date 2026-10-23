@@ -1,0 +1,28 @@
+---
+- name: Install AIDE
+  ansible.builtin.dnf:
+    name: aide
+    state: present
+
+- name: Protect the audit tools with AIDE
+  ansible.builtin.lineinfile:
+    path: /etc/aide.conf
+    regexp: "^\\s*{{ item }}\\s"
+    line: "{{ item }} p+i+n+u+g+s+b+acl+xattrs+sha512"
+  loop: "{{ cis_aide_audit_tools }}"
+
+- name: Build the AIDE database
+  ansible.builtin.shell:
+    cmd: aide --init && mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+    creates: /var/lib/aide/aide.db.gz
+  async: 1800
+  poll: 15
+
+- name: Schedule the AIDE check
+  ansible.builtin.cron:
+    name: aide check
+    cron_file: aide-check
+    user: root
+    minute: "{{ cis_aide_check_time.split()[0] }}"
+    hour: "{{ cis_aide_check_time.split()[1] }}"
+    job: /usr/sbin/aide --check

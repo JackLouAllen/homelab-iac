@@ -1,0 +1,41 @@
+---
+- name: Disable unused kernel modules
+  ansible.builtin.copy:
+    content: |
+      {% for module in cis_blacklisted_modules %}
+      install {{ module }} /bin/false
+      blacklist {{ module }}
+      {% endfor %}
+    dest: /etc/modprobe.d/cis.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set kernel and network sysctls
+  ansible.builtin.template:
+    src: sysctl-cis.conf.j2
+    dest: /etc/sysctl.d/60-cis.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply sysctl settings
+
+- name: Disable core dump storage
+  ansible.builtin.copy:
+    content: |
+      [Coredump]
+      Storage=none
+      ProcessSizeMax=0
+    dest: /etc/systemd/coredump.conf.d/cis.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Disable core dumps for users
+  ansible.builtin.copy:
+    content: |
+      * hard core 0
+    dest: /etc/security/limits.d/60-cis-core.conf
+    owner: root
+    group: root
+    mode: "0644"

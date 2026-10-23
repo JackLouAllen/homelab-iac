@@ -1,0 +1,73 @@
+---
+- name: Read the active authselect profile
+  ansible.builtin.command: authselect current --raw
+  register: cis_authselect_current
+  changed_when: false
+  check_mode: false
+
+- name: Find the features the profile supports
+  ansible.builtin.command: authselect list-features {{ cis_authselect_current.stdout.split()[0] }}
+  register: cis_authselect_supported
+  changed_when: false
+  check_mode: false
+
+- name: Enable the authselect features
+  ansible.builtin.command: authselect enable-feature {{ item }}
+  loop: "{{ cis_authselect_features }}"
+  when:
+    - item in cis_authselect_supported.stdout_lines
+    - item not in cis_authselect_current.stdout.split()[1:]
+  changed_when: true
+
+- name: Report features the profile lacks
+  ansible.builtin.debug:
+    msg: "{{ cis_authselect_current.stdout.split()[0] }} has no {{ item }} feature"
+  loop: "{{ cis_authselect_features }}"
+  when: item not in cis_authselect_supported.stdout_lines
+
+- name: Configure faillock
+  ansible.builtin.copy:
+    content: |
+      dir = /var/run/faillock
+      audit
+      silent
+      deny = {{ cis_faillock_deny }}
+      fail_interval = {{ cis_faillock_interval }}
+      unlock_time = {{ cis_faillock_unlock_time }}
+      even_deny_root
+      root_unlock_time = {{ cis_faillock_root_unlock_time }}
+    dest: /etc/security/faillock.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure password quality
+  ansible.builtin.copy:
+    content: |
+      minlen = 14
+      minclass = 4
+      dcredit = -1
+      ucredit = -1
+      lcredit = -1
+      ocredit = -1
+      difok = 2
+      maxrepeat = 3
+      maxclassrepeat = 4
+      maxsequence = 3
+      dictcheck = 1
+      retry = 3
+      enforce_for_root
+    dest: /etc/security/pwquality.conf.d/60-cis.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure password history
+  ansible.builtin.copy:
+    content: |
+      remember = {{ cis_pwhistory_remember }}
+      enforce_for_root
+    dest: /etc/security/pwhistory.conf
+    owner: root
+    group: root
+    mode: "0644"

@@ -1,0 +1,27 @@
+---
+- name: Read fstab
+  ansible.builtin.slurp:
+    src: /etc/fstab
+  register: cis_fstab
+
+- name: Add the hardening options to fstab
+  ansible.posix.mount:
+    path: "{{ item.key }}"
+    src: "{{ cis_entry[0] | default('tmpfs') }}"
+    fstype: "{{ cis_entry[2] | default('tmpfs') }}"
+    opts: "{{ ((cis_entry[3] | default('defaults')).split(',') + item.value) | unique | join(',') }}"
+    state: present
+  vars:
+    cis_fstab_lines: "{{ (cis_fstab.content | b64decode).splitlines() | reject('match', '^\\s*(#|$)') | map('split') | list }}"
+    cis_entry: "{{ (cis_fstab_lines | selectattr('1', 'equalto', item.key) | first) | default([]) }}"
+  loop: "{{ cis_mount_options | dict2items }}"
+  register: cis_mount_changes
+
+- name: Remount changed filesystems  # noqa: no-handler
+  ansible.posix.mount:
+    path: "{{ item.item.key }}"
+    state: remounted
+  loop: "{{ cis_mount_changes.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: item.changed

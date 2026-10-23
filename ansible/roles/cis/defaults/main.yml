@@ -1,0 +1,183 @@
+---
+cis_admin_user: "{{ baseline_admin_user | default('JackL') }}"
+cis_x86: "{{ ansible_facts.architecture == 'x86_64' }}"
+
+cis_banner_text: Authorized users only. All activity may be monitored and reported.
+
+cis_packages:
+  - aide
+  - authselect
+  - cronie
+  - sequoia-sq
+  - systemd-journal-remote
+
+# Optional SOPS file with cis_grub_pbkdf2_hash and cis_root_password_hash.
+cis_secrets_file: ""
+
+# SSH
+cis_ssh_allow_users:
+  - "{{ cis_admin_user }}"
+cis_ssh_client_alive_interval: 300
+cis_ssh_client_alive_count_max: 1
+
+# Accounts
+cis_password_max_days: 365
+cis_password_min_days: 1
+cis_password_inactive_days: 45
+cis_umask: "027"
+cis_tmout: 900
+cis_su_group: sugroup
+
+# PAM
+cis_manage_pam: true
+cis_authselect_features:
+  - with-faillock
+  - with-pwhistory
+  - without-nullok
+cis_faillock_deny: 5
+cis_faillock_interval: 900
+cis_faillock_unlock_time: 900
+cis_faillock_root_unlock_time: 60
+cis_pwhistory_remember: 24
+
+# sudo
+cis_sudo_logfile: /var/log/sudo.log
+cis_sudo_timestamp_timeout: 15
+
+# auditd.conf
+cis_auditd_space_left_action: email
+cis_auditd_admin_space_left_action: single
+cis_auditd_max_log_file_action: keep_logs
+cis_auditd_disk_full_action: single
+cis_auditd_disk_error_action: syslog
+# -e 2 locks the rules until reboot, so enable it only at the end of a hardening pass.
+cis_audit_immutable: false
+
+# Logging: journald only, as the benchmark requires exactly one active logger.
+cis_disable_rsyslog: true
+
+# Podman bridge networks and Tailscale subnet routing need forwarding.
+cis_allow_ip_forwarding: false
+
+# overlay is left out on purpose: Podman needs the overlay storage driver.
+cis_blacklisted_modules:
+  - atm
+  - can
+  - cramfs
+  - dccp
+  - firewire-core
+  - freevxfs
+  - hfs
+  - hfsplus
+  - jffs2
+  - rds
+  - sctp
+  - squashfs
+  - tipc
+  - udf
+  - usb-storage
+
+# /var/tmp stays exec: rpm runs package scriptlets from there.
+cis_mount_options:
+  /tmp: [nodev, nosuid, noexec]
+  /var/tmp: [nodev, nosuid]
+  /dev/shm: [nodev, nosuid, noexec]
+  /home: [nodev, nosuid]
+  /var: [nodev, nosuid]
+  /var/log: [nodev, nosuid, noexec]
+  /var/log/audit: [nodev, nosuid, noexec]
+
+cis_masked_units:
+  - bluetooth.service
+  - nfs-server.service
+  - rpcbind.service
+  - rpcbind.socket
+
+cis_aide_audit_tools:
+  - /usr/sbin/auditctl
+  - /usr/sbin/auditd
+  - /usr/sbin/augenrules
+  - /usr/sbin/aureport
+  - /usr/sbin/ausearch
+  - /usr/sbin/autrace
+cis_aide_check_time: "0 5 * * *"
+
+cis_crypto_policy: DEFAULT:NO-SSHCBC:NO-SSHWEAKCIPHERS:NO-SSHWEAKMACS:NO-WEAKMAC
+
+cis_sysctl_base:
+  kernel.randomize_va_space: 2
+  kernel.yama.ptrace_scope: 1
+  kernel.dmesg_restrict: 1
+  fs.suid_dumpable: 0
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  net.ipv4.conf.all.secure_redirects: 0
+  net.ipv4.conf.default.secure_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.conf.default.log_martians: 1
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.conf.default.rp_filter: 1
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+  net.ipv4.icmp_ignore_bogus_error_responses: 1
+  net.ipv4.tcp_syncookies: 1
+  net.ipv6.conf.all.accept_ra: 0
+  net.ipv6.conf.default.accept_ra: 0
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_source_route: 0
+  net.ipv6.conf.default.accept_source_route: 0
+cis_sysctl_no_forwarding:
+  net.ipv4.ip_forward: 0
+  net.ipv4.conf.all.forwarding: 0
+  net.ipv4.conf.default.forwarding: 0
+  net.ipv6.conf.all.forwarding: 0
+  net.ipv6.conf.default.forwarding: 0
+
+cis_audit_arches: "{{ ['b32', 'b64'] if cis_x86 else ['b64'] }}"
+cis_audit_syscall_groups:
+  - {key: perm_mod, syscalls: [fchmod, fchmodat, fchmodat2], x86: [chmod], filters: "-F auid>=1000 -F auid!=unset"}
+  - {key: perm_mod, syscalls: [fchown, fchownat], x86: [chown, lchown], filters: "-F auid>=1000 -F auid!=unset"}
+  - {key: perm_mod, syscalls: [setxattr, lsetxattr, fsetxattr, removexattr, lremovexattr, fremovexattr], filters: "-F auid>=1000 -F auid!=unset"}
+  - {key: access, syscalls: [openat, truncate, ftruncate], x86: [open, creat], filters: "-F exit=-EACCES -F auid>=1000 -F auid!=unset"}
+  - {key: access, syscalls: [openat, truncate, ftruncate], x86: [open, creat], filters: "-F exit=-EPERM -F auid>=1000 -F auid!=unset"}
+  - {key: delete, syscalls: [unlinkat, renameat, renameat2], x86: [unlink, rename], filters: "-F auid>=1000 -F auid!=unset"}
+  - {key: export, syscalls: [mount], filters: "-F auid>=1000 -F auid!=unset"}
+  - {key: kernel_modules, syscalls: [init_module, finit_module, delete_module], filters: "-F auid!=unset"}
+  - {key: time-change, syscalls: [adjtimex, settimeofday, clock_settime], filters: ""}
+  - {key: system-locale, syscalls: [sethostname, setdomainname], filters: ""}
+cis_audit_watches:
+  - {path: /etc/sudoers, key: actions}
+  - {path: /etc/sudoers.d, key: actions}
+  - {path: /var/log/sudo.log, key: sudo_log_file}
+  - {path: /etc/localtime, key: time-change}
+  - {path: /etc/issue, key: system-locale}
+  - {path: /etc/issue.net, key: system-locale}
+  - {path: /etc/hosts, key: system-locale}
+  - {path: /etc/hostname, key: system-locale}
+  - {path: /etc/sysconfig/network, key: system-locale}
+  - {path: /etc/NetworkManager, key: system-locale}
+  - {path: /etc/selinux, key: MAC-policy}
+  - {path: /usr/share/selinux, key: MAC-policy}
+  - {path: /var/log/lastlog, key: logins}
+  - {path: /var/run/faillock, key: logins}
+  - {path: /var/run/utmp, key: session}
+  - {path: /var/log/wtmp, key: session}
+  - {path: /var/log/btmp, key: session}
+  - {path: /etc/group, key: identity}
+  - {path: /etc/passwd, key: identity}
+  - {path: /etc/gshadow, key: identity}
+  - {path: /etc/shadow, key: identity}
+  - {path: /etc/security/opasswd, key: identity}
+  - {path: /etc/nsswitch.conf, key: identity}
+  - {path: /etc/pam.conf, key: identity}
+  - {path: /etc/pam.d, key: identity}
+cis_audit_exec_paths:
+  - {path: /usr/sbin/usermod, key: privileged}
+  - {path: /usr/bin/kmod, key: modules}
+  - {path: /usr/bin/chacl, key: perm_chng}
+  - {path: /usr/bin/chcon, key: perm_chng}
+  - {path: /usr/bin/setfacl, key: perm_chng}

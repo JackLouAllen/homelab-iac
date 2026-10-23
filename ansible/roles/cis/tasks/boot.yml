@@ -1,0 +1,18 @@
+---
+- name: Set the boot loader password
+  ansible.builtin.copy:
+    content: "GRUB2_PASSWORD={{ cis_secrets.cis_grub_pbkdf2_hash }}\n"
+    dest: /boot/grub2/user.cfg
+    owner: root
+    group: root
+    mode: "0600"
+  when: cis_secrets is defined and cis_secrets.cis_grub_pbkdf2_hash is defined
+  no_log: true
+
+- name: Set the root password
+  ansible.builtin.user:
+    name: root
+    password: "{{ cis_secrets.cis_root_password_hash }}"
+    update_password: always
+  when: cis_secrets is defined and cis_secrets.cis_root_password_hash is defined
+  no_log: true

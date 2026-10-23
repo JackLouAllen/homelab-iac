@@ -1,0 +1,12 @@
+---
+- name: Harden sudo
+  ansible.builtin.copy:
+    content: |
+      Defaults use_pty
+      Defaults logfile="{{ cis_sudo_logfile }}"
+      Defaults timestamp_timeout={{ cis_sudo_timestamp_timeout }}
+    dest: /etc/sudoers.d/60-cis
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
