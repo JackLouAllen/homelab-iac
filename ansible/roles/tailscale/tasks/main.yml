@@ -1,0 +1,61 @@
+---
+- name: Add the Tailscale repository
+  ansible.builtin.yum_repository:
+    name: tailscale-stable
+    description: Tailscale stable
+    baseurl: "{{ tailscale_repo_baseurl }}"
+    gpgkey: "{{ tailscale_repo_gpgkey }}"
+    gpgcheck: true
+    repo_gpgcheck: true
+    enabled: true
+
+- name: Install Tailscale
+  ansible.builtin.dnf:
+    name: tailscale
+    state: present
+
+- name: Enable tailscaled
+  ansible.builtin.service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Check whether the host has joined the tailnet
+  ansible.builtin.command: tailscale ip -4
+  register: tailscale_joined
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Without an auth key, join by hand: sudo tailscale up --hostname=<host>
+- name: Join the tailnet with the SOPS auth key
+  when:
+    - tailscale_joined.rc != 0
+    - tailscale_auth_key_file | length > 0
+  block:
+    - name: Decrypt the auth key on the controller
+      community.sops.load_vars:
+        file: "{{ tailscale_auth_key_file }}"
+        name: tailscale_secrets
+      no_log: true
+
+    - name: Run tailscale up
+      ansible.builtin.command: >-
+        tailscale up --hostname={{ inventory_hostname }}
+        --auth-key={{ tailscale_secrets.tailscale_auth_key }}
+      changed_when: true
+      no_log: true
+
+- name: Read the tailnet address
+  ansible.builtin.command: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Report tailnet status
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'Joined the tailnet as ' ~ tailscale_ip.stdout
+      if tailscale_ip.rc == 0
+      else 'Not joined yet; run: sudo tailscale up --hostname=' ~ inventory_hostname }}

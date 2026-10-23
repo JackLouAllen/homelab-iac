@@ -5,3 +5,4 @@ baseline_chrony_servers:
 
 baseline_data_device: /dev/sdb
 baseline_data_mountpoint: /srv
+baseline_ssh_tailscale_only: true
