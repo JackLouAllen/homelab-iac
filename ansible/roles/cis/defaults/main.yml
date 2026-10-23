@@ -51,6 +51,9 @@ cis_auditd_admin_space_left_action: single
 cis_auditd_max_log_file_action: keep_logs
 cis_auditd_disk_full_action: single
 cis_auditd_disk_error_action: syslog
+# keep_logs never deletes rotated logs, so a timer prunes them to stop the audit volume
+# filling, which would put the host in single-user mode. Wazuh must ship logs well before this.
+cis_audit_retention_days: 90
 # -e 2 locks the rules until reboot, so enable it only at the end of a hardening pass.
 cis_audit_immutable: false
 

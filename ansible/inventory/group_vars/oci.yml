@@ -9,6 +9,6 @@ baseline_data_mountpoint: /srv
 baseline_lvm_volumes:
   - {name: var, size: 18g}
   - {name: var_log, size: 8g}
-  - {name: var_log_audit, size: 4g}
+  - {name: var_log_audit, size: 6g}
 
 baseline_ssh_tailscale_only: true

@@ -62,3 +62,24 @@
     mode: "0600"
   when: cis_audit_immutable
   notify: Load audit rules
+
+- name: Install the audit log pruning units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - audit-prune.service
+    - audit-prune.timer
+  notify: Reload systemd (cis)
+
+- name: Flush handlers so systemd sees the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable audit log pruning
+  ansible.builtin.systemd_service:
+    name: audit-prune.timer
+    enabled: true
+    state: started

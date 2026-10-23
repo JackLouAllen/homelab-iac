@@ -1,0 +1,6 @@
+[Unit]
+Description=Delete rotated audit logs older than {{ cis_audit_retention_days }} days
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find /var/log/audit -maxdepth 1 -type f -name 'audit.log.*' -mtime +{{ cis_audit_retention_days }} -print -delete

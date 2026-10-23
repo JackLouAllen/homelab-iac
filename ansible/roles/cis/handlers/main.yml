@@ -4,6 +4,10 @@
     name: sshd
     state: reloaded
 
+- name: Reload systemd (cis)
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
 - name: Restart postfix
   ansible.builtin.service:
     name: postfix
