@@ -11,8 +11,9 @@ cis_packages:
   - sequoia-sq
   - systemd-journal-remote
 
-# Optional SOPS file with cis_grub_pbkdf2_hash and cis_root_password_hash.
-cis_secrets_file: ""
+# Supplied at run time from a tmpfs copy of inventory/secrets/cis.sops.yml.
+cis_root_password_hash: ""
+cis_grub_pbkdf2_hash: ""
 
 # SSH
 cis_ssh_allow_users:
@@ -137,47 +138,74 @@ cis_sysctl_no_forwarding:
   net.ipv6.conf.all.forwarding: 0
   net.ipv6.conf.default.forwarding: 0
 
-cis_audit_arches: "{{ ['b32', 'b64'] if cis_x86 else ['b64'] }}"
-cis_audit_syscall_groups:
-  - {key: perm_mod, syscalls: [fchmod, fchmodat, fchmodat2], x86: [chmod], filters: "-F auid>=1000 -F auid!=unset"}
-  - {key: perm_mod, syscalls: [fchown, fchownat], x86: [chown, lchown], filters: "-F auid>=1000 -F auid!=unset"}
-  - {key: perm_mod, syscalls: [setxattr, lsetxattr, fsetxattr, removexattr, lremovexattr, fremovexattr], filters: "-F auid>=1000 -F auid!=unset"}
-  - {key: access, syscalls: [openat, truncate, ftruncate], x86: [open, creat], filters: "-F exit=-EACCES -F auid>=1000 -F auid!=unset"}
-  - {key: access, syscalls: [openat, truncate, ftruncate], x86: [open, creat], filters: "-F exit=-EPERM -F auid>=1000 -F auid!=unset"}
-  - {key: delete, syscalls: [unlinkat, renameat, renameat2], x86: [unlink, rename], filters: "-F auid>=1000 -F auid!=unset"}
-  - {key: export, syscalls: [mount], filters: "-F auid>=1000 -F auid!=unset"}
-  - {key: kernel_modules, syscalls: [init_module, finit_module, delete_module], filters: "-F auid!=unset"}
-  - {key: time-change, syscalls: [adjtimex, settimeofday, clock_settime], filters: ""}
-  - {key: system-locale, syscalls: [sethostname, setdomainname], filters: ""}
-cis_audit_watches:
-  - {path: /etc/sudoers, key: actions}
-  - {path: /etc/sudoers.d, key: actions}
-  - {path: /var/log/sudo.log, key: sudo_log_file}
-  - {path: /etc/localtime, key: time-change}
-  - {path: /etc/issue, key: system-locale}
-  - {path: /etc/issue.net, key: system-locale}
-  - {path: /etc/hosts, key: system-locale}
-  - {path: /etc/hostname, key: system-locale}
-  - {path: /etc/sysconfig/network, key: system-locale}
-  - {path: /etc/NetworkManager, key: system-locale}
-  - {path: /etc/selinux, key: MAC-policy}
-  - {path: /usr/share/selinux, key: MAC-policy}
-  - {path: /var/log/lastlog, key: logins}
-  - {path: /var/run/faillock, key: logins}
-  - {path: /var/run/utmp, key: session}
-  - {path: /var/log/wtmp, key: session}
-  - {path: /var/log/btmp, key: session}
-  - {path: /etc/group, key: identity}
-  - {path: /etc/passwd, key: identity}
-  - {path: /etc/gshadow, key: identity}
-  - {path: /etc/shadow, key: identity}
-  - {path: /etc/security/opasswd, key: identity}
-  - {path: /etc/nsswitch.conf, key: identity}
-  - {path: /etc/pam.conf, key: identity}
-  - {path: /etc/pam.d, key: identity}
+# The benchmark checks both architectures, even on 64-bit-only hosts.
+cis_audit_arches: [b32, b64]
+cis_audit_paths:
+  - {kind: path, path: /etc/sudoers, key: actions}
+  - {kind: dir, path: /etc/sudoers.d/, key: actions}
+  - {kind: path, path: /var/log/sudo.log, key: maintenance}
+  - {kind: path, path: /etc/localtime, key: audit_time_rules}
+  - {kind: path, path: /etc/issue, key: system-locale}
+  - {kind: path, path: /etc/issue.net, key: system-locale}
+  - {kind: path, path: /etc/hosts, key: system-locale}
+  - {kind: path, path: /etc/hostname, key: system-locale}
+  - {kind: path, path: /etc/sysconfig/network, key: system-locale}
+  - {kind: path, path: /etc/NetworkManager, key: system-locale}
+  - {kind: dir, path: /etc/NetworkManager/system-connections/, key: system-locale}
+  - {kind: dir, path: /etc/selinux/, key: MAC-policy}
+  - {kind: dir, path: /usr/share/selinux/, key: MAC-policy}
+  - {kind: path, path: /var/log/lastlog, key: logins}
+  - {kind: path, path: /var/run/faillock, key: logins}
+  - {kind: path, path: /var/run/utmp, key: session}
+  - {kind: path, path: /var/log/wtmp, key: session}
+  - {kind: path, path: /var/log/btmp, key: session}
+  - {kind: path, path: /etc/group, key: audit_rules_usergroup_modification}
+  - {kind: path, path: /etc/passwd, key: audit_rules_usergroup_modification}
+  - {kind: path, path: /etc/gshadow, key: audit_rules_usergroup_modification}
+  - {kind: path, path: /etc/shadow, key: audit_rules_usergroup_modification}
+  - {kind: path, path: /etc/security/opasswd, key: audit_rules_usergroup_modification}
+  - {kind: path, path: /etc/nsswitch.conf, key: audit_rules_usergroup_modification}
+  - {kind: path, path: /etc/pam.conf, key: audit_rules_usergroup_modification}
+  - {kind: dir, path: /etc/pam.d/, key: audit_rules_usergroup_modification}
+# One rule per syscall and architecture; x86_only entries do not exist on aarch64.
+cis_audit_auid: "-F auid>=1000 -F auid!=unset"
+cis_audit_syscalls:
+  - {name: fchmod, key: perm_mod}
+  - {name: fchmodat, key: perm_mod}
+  - {name: fchmodat2, key: perm_mod}
+  - {name: chmod, key: perm_mod, x86_only: true}
+  - {name: fchown, key: perm_mod}
+  - {name: fchownat, key: perm_mod}
+  - {name: chown, key: perm_mod, x86_only: true}
+  - {name: lchown, key: perm_mod, x86_only: true}
+  - {name: setxattr, key: perm_mod, auid0: true}
+  - {name: lsetxattr, key: perm_mod, auid0: true}
+  - {name: fsetxattr, key: perm_mod, auid0: true}
+  - {name: removexattr, key: perm_mod, auid0: true}
+  - {name: lremovexattr, key: perm_mod, auid0: true}
+  - {name: fremovexattr, key: perm_mod, auid0: true}
+  - {name: openat, key: access, exits: [-EACCES, -EPERM]}
+  - {name: truncate, key: access, exits: [-EACCES, -EPERM]}
+  - {name: ftruncate, key: access, exits: [-EACCES, -EPERM]}
+  - {name: open, key: access, exits: [-EACCES, -EPERM], x86_only: true}
+  - {name: creat, key: access, exits: [-EACCES, -EPERM], x86_only: true}
+  - {name: unlinkat, key: delete}
+  - {name: renameat, key: delete}
+  - {name: renameat2, key: delete}
+  - {name: unlink, key: delete, x86_only: true}
+  - {name: rename, key: delete, x86_only: true}
+  - {name: mount, key: export}
+  - {name: init_module, key: modules}
+  - {name: finit_module, key: modules}
+  - {name: delete_module, key: modules}
+  - {name: sethostname, key: system-locale}
+  - {name: setdomainname, key: system-locale}
+  - {name: adjtimex, key: audit_time_rules, no_auid: true}
+  - {name: settimeofday, key: audit_time_rules, no_auid: true}
+  - {name: clock_settime, key: time-change, extra: "-F a0=0x0", no_auid: true}
 cis_audit_exec_paths:
-  - {path: /usr/sbin/usermod, key: privileged}
-  - {path: /usr/bin/kmod, key: modules}
-  - {path: /usr/bin/chacl, key: perm_chng}
-  - {path: /usr/bin/chcon, key: perm_chng}
-  - {path: /usr/bin/setfacl, key: perm_chng}
+  - /usr/sbin/usermod
+  - /usr/bin/kmod
+  - /usr/bin/chacl
+  - /usr/bin/chcon
+  - /usr/bin/setfacl

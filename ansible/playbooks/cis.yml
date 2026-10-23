@@ -1,5 +1,6 @@
 ---
 - name: Apply CIS remediation
   hosts: all
+  force_handlers: true
   roles:
     - cis

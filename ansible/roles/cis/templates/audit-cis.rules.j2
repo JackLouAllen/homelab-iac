@@ -1,14 +1,19 @@
 # Managed by Ansible
-{% for watch in cis_audit_watches %}
--w {{ watch.path }} -p wa -k {{ watch.key }}
-{% endfor %}
 {% for arch in cis_audit_arches %}
-{% for group in cis_audit_syscall_groups %}
--a always,exit -F arch={{ arch }} -S {{ (group.syscalls + ((group.x86 | default([])) if cis_x86 else [])) | join(',') }} {{ group.filters }} -F key={{ group.key }}
+{% for p in cis_audit_paths %}
+-a always,exit -F arch={{ arch }} -F {{ p.kind }}={{ p.path }} -F perm=wa -F key={{ p.key }}
 {% endfor %}
--a always,exit -F arch={{ arch }} -S execve -C uid!=euid -F euid=0 -F auid!=unset -F key=setuid
--a always,exit -F arch={{ arch }} -S execve -C gid!=egid -F egid=0 -F auid!=unset -F key=setgid
+{% for s in cis_audit_syscalls if cis_x86 or not (s.x86_only | default(false)) %}
+{% for exit in (s.exits | default([''])) %}
+-a always,exit -F arch={{ arch }} -S {{ s.name }}{{ ' -F exit=' ~ exit if exit else '' }}{{ ' ' ~ s.extra if s.extra | default('') else '' }}{{ '' if s.no_auid | default(false) else ' ' ~ cis_audit_auid }} -F key={{ s.key }}
 {% endfor %}
+{% if s.auid0 | default(false) %}
+-a always,exit -F arch={{ arch }} -S {{ s.name }} -F auid=0 -F key={{ s.key }}
+{% endif %}
+{% endfor %}
+-a always,exit -F arch={{ arch }} -S execve -C euid!=uid -F auid!=unset -k user_emulation
+-a always,exit -F arch={{ arch }} -S execve -C egid!=gid -F auid!=unset -k user_emulation
 {% for exe in cis_audit_exec_paths %}
--a always,exit -F path={{ exe.path }} -F perm=x -F auid>=1000 -F auid!=unset -F key={{ exe.key }}
+-a always,exit -F arch={{ arch }} -F path={{ exe }} -F perm=x {{ cis_audit_auid }} -F key=privileged
+{% endfor %}
 {% endfor %}

@@ -1,4 +1,6 @@
 # Managed by Ansible
+{% for arch in cis_audit_arches %}
 {% for cmd in cis_privileged.stdout_lines %}
--a always,exit -F path={{ cmd }} -F perm=x -F auid>=1000 -F auid!=unset -F key=privileged
+-a always,exit -F arch={{ arch }} -F path={{ cmd }} -F perm=x {{ cis_audit_auid }} -F key=privileged
+{% endfor %}
 {% endfor %}

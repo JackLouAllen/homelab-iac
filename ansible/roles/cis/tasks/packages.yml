@@ -8,5 +8,5 @@
   ansible.builtin.lineinfile:
     path: /etc/dnf/dnf.conf
     regexp: ^install_weak_deps\s*=
-    line: install_weak_deps=False
+    line: install_weak_deps=0
     insertafter: ^\[main\]

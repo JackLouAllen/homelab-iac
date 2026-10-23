@@ -41,6 +41,14 @@
     group: root
     mode: "0644"
 
+- name: Create the pwquality drop-in directory
+  ansible.builtin.file:
+    path: /etc/security/pwquality.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Configure password quality
   ansible.builtin.copy:
     content: |

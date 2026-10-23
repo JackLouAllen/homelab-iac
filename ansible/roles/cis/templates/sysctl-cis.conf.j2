@@ -1,4 +1,0 @@
-# Managed by Ansible
-{% for name, value in (cis_sysctl_base | combine({} if cis_allow_ip_forwarding else cis_sysctl_no_forwarding)).items() %}
-{{ name }} = {{ value }}
-{% endfor %}

@@ -1,4 +1,15 @@
 ---
+- name: Create the logging drop-in directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/systemd/journald.conf.d
+    - /etc/rsyslog.d
+
 - name: Configure journald
   ansible.builtin.copy:
     content: |

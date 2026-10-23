@@ -2,4 +2,3 @@
 collections:
   - name: ansible.posix
   - name: community.general
-  - name: community.sops

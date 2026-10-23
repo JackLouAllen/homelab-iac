@@ -12,13 +12,22 @@
     mode: "0644"
 
 - name: Set kernel and network sysctls
-  ansible.builtin.template:
-    src: sysctl-cis.conf.j2
-    dest: /etc/sysctl.d/60-cis.conf
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/60-cis.conf
+    sysctl_set: true
+    reload: false
+    state: present
+  loop: "{{ (cis_sysctl_base | combine({} if cis_allow_ip_forwarding else cis_sysctl_no_forwarding)) | dict2items }}"
+
+- name: Create the core dump drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/coredump.conf.d
+    state: directory
     owner: root
     group: root
-    mode: "0644"
-  notify: Apply sysctl settings
+    mode: "0755"
 
 - name: Disable core dump storage
   ansible.builtin.copy:

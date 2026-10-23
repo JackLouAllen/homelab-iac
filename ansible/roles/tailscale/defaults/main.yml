@@ -1,5 +1,6 @@
 ---
 tailscale_repo_baseurl: "https://pkgs.tailscale.com/stable/rhel/{{ ansible_facts.distribution_major_version }}/$basearch"
-# SOPS file holding tailscale_auth_key; empty means join by hand.
-tailscale_auth_key_file: ""
+# Supplied at run time from a tmpfs copy of inventory/secrets/tailscale.sops.yml.
+# Empty means join by hand.
+tailscale_auth_key: ""
 tailscale_repo_gpgkey: "https://pkgs.tailscale.com/stable/rhel/{{ ansible_facts.distribution_major_version }}/repo.gpg"

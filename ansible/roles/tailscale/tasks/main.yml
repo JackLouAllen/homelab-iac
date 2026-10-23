@@ -28,23 +28,15 @@
   check_mode: false
 
 # Without an auth key, join by hand: sudo tailscale up --hostname=<host>
-- name: Join the tailnet with the SOPS auth key
+- name: Join the tailnet with the auth key
+  ansible.builtin.command: >-
+    tailscale up --hostname={{ inventory_hostname }}
+    --auth-key={{ tailscale_auth_key }}
   when:
     - tailscale_joined.rc != 0
-    - tailscale_auth_key_file | length > 0
-  block:
-    - name: Decrypt the auth key on the controller
-      community.sops.load_vars:
-        file: "{{ tailscale_auth_key_file }}"
-        name: tailscale_secrets
-      no_log: true
-
-    - name: Run tailscale up
-      ansible.builtin.command: >-
-        tailscale up --hostname={{ inventory_hostname }}
-        --auth-key={{ tailscale_secrets.tailscale_auth_key }}
-      changed_when: true
-      no_log: true
+    - tailscale_auth_key | length > 0
+  changed_when: true
+  no_log: true
 
 - name: Read the tailnet address
   ansible.builtin.command: tailscale ip -4

@@ -1,0 +1,18 @@
+---
+- name: Install postfix
+  ansible.builtin.dnf:
+    name: postfix
+    state: present
+
+- name: Accept mail from this host only
+  ansible.builtin.lineinfile:
+    path: /etc/postfix/main.cf
+    regexp: ^inet_interfaces\s*=
+    line: inet_interfaces = loopback-only
+  notify: Restart postfix
+
+- name: Enable postfix
+  ansible.builtin.service:
+    name: postfix
+    state: started
+    enabled: true

@@ -24,17 +24,23 @@
 - name: Set the shell umask
   ansible.builtin.replace:
     path: "{{ item }}"
-    regexp: ^(\s*umask)\s+\d+\s*$
+    regexp: ^([^#\n]*\bumask)[ \t]+\d+
     replace: \1 {{ cis_umask }}
   loop:
     - /etc/profile
     - /etc/bashrc
 
+# RHEL 10 ships no umask line in /etc/profile, so the setting must be added.
+- name: Ensure /etc/profile sets the umask
+  ansible.builtin.lineinfile:
+    path: /etc/profile
+    regexp: ^\s*umask\s+\d+\s*$
+    line: umask {{ cis_umask }}
+
 - name: Set the idle shell timeout
   ansible.builtin.copy:
     content: |
-      readonly TMOUT={{ cis_tmout }}
-      export TMOUT
+      typeset -xr TMOUT={{ cis_tmout }}
     dest: /etc/profile.d/cis-tmout.sh
     owner: root
     group: root

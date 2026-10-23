@@ -9,6 +9,32 @@
     validate: /usr/sbin/sshd -t -f %s
   notify: Reload sshd (cis)
 
+- name: Find sshd files that enable GSSAPI
+  ansible.builtin.find:
+    paths: /etc/ssh/sshd_config.d
+    patterns: "*.conf"
+    contains: (?i)^\s*GSSAPIAuthentication\s+yes
+    use_regex: false
+  register: cis_gssapi_files
+
+- name: Turn GSSAPI off in the distribution drop-ins
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: (?i)^(\s*GSSAPIAuthentication\s+)yes
+    replace: \1no
+  loop: "{{ cis_gssapi_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Reload sshd (cis)
+
+- name: Create the crypto policy modules directory
+  ansible.builtin.file:
+    path: /etc/crypto-policies/policies/modules
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Create the crypto policy modules
   ansible.builtin.copy:
     content: "{{ item.content }}\n"

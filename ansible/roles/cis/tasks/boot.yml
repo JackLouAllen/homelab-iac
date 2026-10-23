@@ -1,18 +1,37 @@
 ---
 - name: Set the boot loader password
   ansible.builtin.copy:
-    content: "GRUB2_PASSWORD={{ cis_secrets.cis_grub_pbkdf2_hash }}\n"
+    content: "GRUB2_PASSWORD={{ cis_grub_pbkdf2_hash }}\n"
     dest: /boot/grub2/user.cfg
     owner: root
     group: root
     mode: "0600"
-  when: cis_secrets is defined and cis_secrets.cis_grub_pbkdf2_hash is defined
+  register: cis_grub_user_cfg
+  when: cis_grub_pbkdf2_hash | length > 0
   no_log: true
+
+- name: Check whether grub.cfg carries the password
+  ansible.builtin.command: grep -q '^[[:space:]]*password_pbkdf2' /boot/grub2/grub.cfg
+  register: cis_grub_cfg_password
+  changed_when: false
+  failed_when: cis_grub_cfg_password.rc not in [0, 1]
+  check_mode: false
+  when: cis_grub_pbkdf2_hash | length > 0
+
+# 01_users copies the hash from user.cfg into grub.cfg only when grub.cfg is generated.
+- name: Regenerate grub.cfg
+  ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
+  when:
+    - cis_grub_pbkdf2_hash | length > 0
+    - cis_grub_user_cfg.changed or cis_grub_cfg_password.rc != 0
+  changed_when: true
 
 - name: Set the root password
   ansible.builtin.user:
     name: root
-    password: "{{ cis_secrets.cis_root_password_hash }}"
+    password: "{{ cis_root_password_hash }}"
     update_password: always
-  when: cis_secrets is defined and cis_secrets.cis_root_password_hash is defined
+    password_expire_max: "{{ cis_password_max_days }}"
+    password_expire_min: "{{ cis_password_min_days }}"
+  when: cis_root_password_hash | length > 0
   no_log: true

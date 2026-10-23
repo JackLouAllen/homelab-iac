@@ -11,6 +11,16 @@
     - cis_mask is failed
     - "'Could not find the requested service' not in cis_mask.msg | default('')"
 
+- name: Mask the journal receiver socket
+  ansible.builtin.systemd_service:
+    name: systemd-journal-remote.socket
+    masked: true
+    state: stopped
+  register: cis_journal_socket
+  failed_when:
+    - cis_journal_socket is failed
+    - "'Could not find the requested service' not in cis_journal_socket.msg | default('')"
+
 - name: Trust loopback traffic
   ansible.posix.firewalld:
     zone: trusted
