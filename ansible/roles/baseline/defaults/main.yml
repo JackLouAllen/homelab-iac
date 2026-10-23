@@ -37,3 +37,7 @@ baseline_data_mount_opts: nodev,nosuid
 baseline_openscap_profile: xccdf_org.ssgproject.content_profile_cis
 baseline_openscap_datastream: /usr/share/xml/scap/ssg/content/ssg-rhel10-ds.xml
 baseline_openscap_report_dir: "{{ playbook_dir }}/../../reports/openscap"
+
+# security applies only advisories marked security; reboot is never automatic.
+baseline_dnf_upgrade_type: security
+baseline_dnf_reboot: never

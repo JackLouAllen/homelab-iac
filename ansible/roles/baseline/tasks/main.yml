@@ -10,6 +10,10 @@
   ansible.builtin.import_tasks: packages.yml
   tags: packages
 
+- name: Automatic updates
+  ansible.builtin.import_tasks: updates.yml
+  tags: updates
+
 - name: Storage
   ansible.builtin.import_tasks: storage.yml
   tags: storage
