@@ -1,0 +1,7 @@
+cloudflare_account_id = "0123456789abcdef0123456789abcdef"
+
+# oci1's address from `tailscale ip -4`
+tailnet_ip = "100.64.0.10"
+
+# Subdomains of the public zone served by oci1's tunnel
+public_hostnames = ["git", "auth"]
