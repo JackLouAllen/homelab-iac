@@ -1,0 +1,5 @@
+---
+- name: Public and private ingress
+  hosts: oci
+  roles:
+    - {role: edge, tags: [edge]}

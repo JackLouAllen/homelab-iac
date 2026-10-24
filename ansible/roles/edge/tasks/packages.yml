@@ -1,0 +1,35 @@
+---
+- name: Import the EPEL signing key
+  ansible.builtin.rpm_key:
+    key: "{{ edge_epel_key_url }}"
+    fingerprint: "{{ edge_epel_key_fingerprint }}"
+    state: present
+
+- name: Import the Cloudflare signing key
+  ansible.builtin.rpm_key:
+    key: "{{ edge_cloudflare_key_url }}"
+    fingerprint: "{{ edge_cloudflare_key_fingerprint }}"
+    state: present
+
+- name: Enable EPEL
+  ansible.builtin.dnf:
+    name: "{{ edge_epel_release_url }}"
+    state: present
+
+- name: Add the Cloudflare repository
+  ansible.builtin.yum_repository:
+    name: cloudflared-stable
+    description: cloudflared stable
+    baseurl: https://pkg.cloudflare.com/cloudflared/rpm
+    gpgkey: "{{ edge_cloudflare_key_url }}"
+    gpgcheck: true
+    enabled: true
+
+- name: Install the edge packages
+  ansible.builtin.dnf:
+    name:
+      - nginx
+      - certbot
+      - python3-certbot-dns-cloudflare
+      - cloudflared
+    state: present

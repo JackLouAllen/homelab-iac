@@ -1,0 +1,21 @@
+---
+- name: Check Tailscale is up
+  ansible.builtin.assert:
+    that: edge_tailnet_ip | length > 0
+    fail_msg: tailscale0 has no address; join the tailnet first.
+
+- name: Repositories and packages
+  ansible.builtin.import_tasks: packages.yml
+  tags: [edge_packages]
+
+- name: Certificates
+  ansible.builtin.import_tasks: certs.yml
+  tags: [edge_certs]
+
+- name: Nginx
+  ansible.builtin.import_tasks: nginx.yml
+  tags: [edge_nginx]
+
+- name: Cloudflared
+  ansible.builtin.import_tasks: cloudflared.yml
+  tags: [edge_tunnel]

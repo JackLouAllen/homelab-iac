@@ -1,0 +1,7 @@
+# Managed by Ansible
+[Unit]
+After=tailscaled.service
+Wants=tailscaled.service
+
+[Service]
+ExecStartPre=/usr/bin/bash -c 'for i in $$(seq 1 60); do /usr/sbin/ip -4 addr show dev tailscale0 | grep -q "inet {{ edge_tailnet_ip }}/" && exit 0; sleep 1; done; exit 1'

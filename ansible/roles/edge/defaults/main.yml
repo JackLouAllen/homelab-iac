@@ -1,0 +1,36 @@
+---
+# Public ingress (Cloudflare Tunnel to nginx) and private ingress (nginx on the tailnet).
+edge_public_zone: jacklouallen.info
+edge_private_zone: vaultnet.xyz
+
+# oci1's Tailscale address; the private listener binds here. Must match tailnet_ip in tofu.
+edge_tailnet_ip: "{{ ansible_facts['tailscale0']['ipv4']['address'] | default('') }}"
+
+# cloudflared connects here; it must match origin_service in tofu/cloudflare.
+edge_public_port: 8008
+
+# Public names arrive through the tunnel. An empty upstream answers with respond_text until
+# the service exists. Upstreams are loopback ports published by rootless containers.
+edge_public_sites:
+  - {host: git.jacklouallen.info, upstream: "", respond_text: git is not deployed yet, respond_status: 503}
+  - {host: auth.jacklouallen.info, upstream: "", respond_text: auth is not deployed yet, respond_status: 503}
+
+# Private names are served on the tailnet only, over the wildcard certificate.
+edge_private_sites:
+  - {host: edge.vaultnet.xyz, upstream: "", respond_text: edge ok, respond_status: 200}
+
+# Let's Encrypt staging until the private path works, then set this to false.
+edge_acme_staging: true
+edge_acme_email: ""
+edge_cert_name: "{{ edge_private_zone }}{{ '-staging' if edge_acme_staging else '' }}"
+
+# Supplied at run time from a tmpfs copy of inventory/secrets/edge.sops.yml.
+edge_tunnel_token: ""
+edge_certbot_cloudflare_token: ""
+
+# Signing keys are pinned by fingerprint before they are imported.
+edge_epel_key_url: https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-10
+edge_epel_key_fingerprint: 7D8D15CBFC4E62688591FB2633D98517E37ED158  # gitleaks:allow (public signing-key fingerprint)
+edge_epel_release_url: https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
+edge_cloudflare_key_url: https://pkg.cloudflare.com/cloudflare-ascii-pubkey.gpg
+edge_cloudflare_key_fingerprint: CC94B39C77AE7342A68B89628A682D308D4E5E73  # gitleaks:allow (public signing-key fingerprint)

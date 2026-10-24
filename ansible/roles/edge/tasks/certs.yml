@@ -1,0 +1,55 @@
+---
+- name: Require the Cloudflare DNS token on the first run
+  ansible.builtin.stat:
+    path: /etc/letsencrypt/cloudflare.ini
+  register: edge_dns_credentials
+
+- name: Check the DNS token is available
+  ansible.builtin.assert:
+    that: (edge_certbot_cloudflare_token | length > 0) or edge_dns_credentials.stat.exists
+    fail_msg: >-
+      Pass edge_certbot_cloudflare_token with -e @file from a tmpfs copy of
+      inventory/secrets/edge.sops.yml.
+
+- name: Store the Cloudflare DNS token for certbot
+  ansible.builtin.copy:
+    content: "dns_cloudflare_api_token = {{ edge_certbot_cloudflare_token }}\n"
+    dest: /etc/letsencrypt/cloudflare.ini
+    owner: root
+    group: root
+    mode: "0600"
+  when: edge_certbot_cloudflare_token | length > 0
+  no_log: true
+
+- name: Check for an existing certificate
+  ansible.builtin.stat:
+    path: /etc/letsencrypt/live/{{ edge_cert_name }}/fullchain.pem
+  register: edge_certificate
+
+- name: Issue the wildcard certificate
+  ansible.builtin.command:
+    argv: >-
+      {{ ['certbot', 'certonly', '--non-interactive', '--agree-tos',
+          '--dns-cloudflare', '--dns-cloudflare-credentials', '/etc/letsencrypt/cloudflare.ini',
+          '--dns-cloudflare-propagation-seconds', '30',
+          '--cert-name', edge_cert_name, '-d', '*.' ~ edge_private_zone]
+         + (['--test-cert'] if edge_acme_staging else [])
+         + (['-m', edge_acme_email] if edge_acme_email | length > 0 else ['--register-unsafely-without-email']) }}
+  when: not edge_certificate.stat.exists
+  changed_when: true
+
+- name: Reload nginx after a renewal
+  ansible.builtin.copy:
+    content: |
+      #!/bin/sh
+      systemctl reload nginx
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Enable certificate renewal
+  ansible.builtin.systemd_service:
+    name: certbot-renew.timer
+    enabled: true
+    state: started
