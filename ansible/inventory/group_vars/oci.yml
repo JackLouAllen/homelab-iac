@@ -17,3 +17,5 @@ podman_host_service_users:
   - {name: keycloak, uid: 2001, subid_start: 200000}
   - {name: couchdb, uid: 2002, subid_start: 265536}
   - {name: runner, uid: 2003, subid_start: 331072}
+
+edge_acme_staging: false

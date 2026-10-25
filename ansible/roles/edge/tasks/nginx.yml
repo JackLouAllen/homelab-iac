@@ -71,3 +71,13 @@
     name: nginx.service
     enabled: true
     state: started
+
+- name: Check for the staging certificate lineage
+  ansible.builtin.stat:
+    path: /etc/letsencrypt/renewal/{{ edge_private_zone }}-staging.conf
+  register: edge_staging_lineage
+
+- name: Remove the staging certificate once production is in use
+  ansible.builtin.command: certbot delete --cert-name {{ edge_private_zone }}-staging --non-interactive
+  when: not edge_acme_staging and edge_staging_lineage.stat.exists
+  changed_when: true
