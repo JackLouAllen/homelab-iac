@@ -24,6 +24,27 @@
     mode: "0644"
   notify: Reload systemd for edge
 
+- name: Sandbox the nginx service
+  ansible.builtin.template:
+    src: nginx-hardening.conf.j2
+    dest: /etc/systemd/system/nginx.service.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: edge_sandbox_units
+  notify:
+    - Reload systemd for edge
+    - Restart nginx
+
+- name: Remove the nginx sandbox when it is switched off
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d/hardening.conf
+    state: absent
+  when: not edge_sandbox_units
+  notify:
+    - Reload systemd for edge
+    - Restart nginx
+
 - name: Install the security headers
   ansible.builtin.template:
     src: security-headers.conf.j2

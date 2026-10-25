@@ -19,6 +19,10 @@ edge_public_sites:
 edge_private_sites:
   - {host: edge.vaultnet.xyz, upstream: "", respond_text: edge ok, respond_status: 200}
 
+# Systemd sandboxing for nginx and cloudflared. Set to false to back out a filter that is too
+# strict for the host, then re-run the role.
+edge_sandbox_units: true
+
 # Let's Encrypt staging until the private path works, then set this to false.
 edge_acme_staging: true
 edge_acme_email: ""
