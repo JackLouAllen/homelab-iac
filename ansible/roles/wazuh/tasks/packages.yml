@@ -1,0 +1,46 @@
+---
+- name: Import the Wazuh signing key
+  ansible.builtin.rpm_key:
+    key: "{{ wazuh_key_url }}"
+    fingerprint: "{{ wazuh_key_fingerprint }}"
+    state: present
+
+# Package signatures are checked; the repository metadata is not signed.
+- name: Add the Wazuh repository
+  ansible.builtin.yum_repository:
+    name: wazuh
+    description: Wazuh repository
+    baseurl: "{{ wazuh_repo_url }}"
+    gpgkey: "{{ wazuh_key_url }}"
+    gpgcheck: true
+    enabled: true
+  register: wazuh_repo
+
+- name: Install the tools the role needs
+  ansible.builtin.dnf:
+    name:
+      - python3-cryptography
+      - python3-dnf-plugin-versionlock
+    state: present
+
+# A dry run does not create the repository, so dnf would report the packages as missing.
+- name: Install Wazuh at one pinned version
+  ansible.builtin.dnf:
+    name:
+      - wazuh-indexer-{{ wazuh_version }}
+      - wazuh-manager-{{ wazuh_version }}
+      - wazuh-dashboard-{{ wazuh_version }}
+      - filebeat-{{ wazuh_filebeat_version }}
+    state: present
+  when: not (ansible_check_mode and wazuh_repo is changed)
+
+# The components must stay on the same version; a plain dnf update must not split them.
+- name: Hold the Wazuh packages at that version
+  community.general.dnf_versionlock:
+    name:
+      - wazuh-indexer
+      - wazuh-manager
+      - wazuh-dashboard
+      - filebeat
+    state: present
+  when: not (ansible_check_mode and wazuh_repo is changed)

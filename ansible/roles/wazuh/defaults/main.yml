@@ -1,0 +1,31 @@
+---
+# All-in-one Wazuh on one host: indexer, manager with Filebeat, and dashboard.
+# The manager monitors its own host, so no separate agent is installed here.
+wazuh_version: "4.14.9"
+wazuh_filebeat_version: "7.10.2"
+
+wazuh_repo_url: https://packages.wazuh.com/4.x/yum/
+wazuh_key_url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+wazuh_key_fingerprint: 0DCFCA5547B19D2A6099506096B3EE5F29111145  # gitleaks:allow (public signing-key fingerprint)
+
+wazuh_max_map_count: 262144
+# Indexer data and logs go on the data volume, not /var.
+wazuh_data_root: /srv/wazuh
+wazuh_indexer_heap: 4g
+
+# Minimum host size before the role proceeds.
+wazuh_min_memory_mb: 12000
+wazuh_min_free_gb: 30
+
+# Certificates for the components, issued by a local CA kept on this host.
+wazuh_pki_dir: /etc/wazuh-pki
+wazuh_pki_owner: root
+wazuh_pki_group: root
+wazuh_pki_org: homelab
+wazuh_ca_days: 3650
+wazuh_cert_days: 730
+wazuh_certs:
+  - {name: admin, cn: admin, san: [], server: false}
+  - {name: indexer, cn: wazuh-indexer, san: ["DNS:wazuh-indexer", "DNS:localhost", "IP:127.0.0.1"], server: true}
+  - {name: filebeat, cn: wazuh-manager, san: ["DNS:wazuh-manager", "DNS:localhost", "IP:127.0.0.1"], server: false}
+  - {name: dashboard, cn: wazuh-dashboard, san: ["DNS:wazuh-dashboard", "DNS:localhost", "IP:127.0.0.1"], server: true}

@@ -1,0 +1,84 @@
+---
+- name: Create the certificate directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ wazuh_pki_owner }}"
+    group: "{{ wazuh_pki_group }}"
+    mode: "0700"
+  loop: "{{ [wazuh_pki_dir] + (wazuh_certs | map(attribute='name') | map('regex_replace', '^', wazuh_pki_dir ~ '/') | list) }}"
+
+# The CA key stays on this host with the components it signs for; it is root-only and read-only.
+- name: Create the CA key
+  community.crypto.openssl_privatekey:
+    path: "{{ wazuh_pki_dir }}/root-ca.key"
+    size: 4096
+    owner: "{{ wazuh_pki_owner }}"
+    group: "{{ wazuh_pki_group }}"
+    mode: "0400"
+
+- name: Create the CA request
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ wazuh_pki_dir }}/root-ca.key"
+    common_name: Wazuh root CA
+    organization_name: "{{ wazuh_pki_org }}"
+    basic_constraints: ["CA:TRUE", "pathlen:0"]
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+  register: wazuh_ca_csr
+  changed_when: false
+
+- name: Sign the CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ wazuh_pki_dir }}/root-ca.pem"
+    csr_content: "{{ wazuh_ca_csr.csr }}"
+    privatekey_path: "{{ wazuh_pki_dir }}/root-ca.key"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ wazuh_ca_days }}d"
+    owner: "{{ wazuh_pki_owner }}"
+    group: "{{ wazuh_pki_group }}"
+    mode: "0644"
+
+# The indexer needs PKCS#8 keys.
+- name: Create the component keys
+  community.crypto.openssl_privatekey:
+    path: "{{ wazuh_pki_dir }}/{{ item.name }}/{{ item.name }}.key"
+    size: 2048
+    format: pkcs8
+    owner: "{{ wazuh_pki_owner }}"
+    group: "{{ wazuh_pki_group }}"
+    mode: "0400"
+  loop: "{{ wazuh_certs }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create the component requests
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ wazuh_pki_dir }}/{{ item.name }}/{{ item.name }}.key"
+    common_name: "{{ item.cn }}"
+    organizational_unit_name: Wazuh
+    organization_name: "{{ wazuh_pki_org }}"
+    subject_alt_name: "{{ item.san if item.san | length > 0 else omit }}"
+    key_usage: [digitalSignature, keyEncipherment]
+    extended_key_usage: "{{ ['serverAuth', 'clientAuth'] if item.server else ['clientAuth'] }}"
+  register: wazuh_csrs
+  changed_when: false
+  loop: "{{ wazuh_certs }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Sign the component certificates
+  community.crypto.x509_certificate:
+    path: "{{ wazuh_pki_dir }}/{{ item.item.name }}/{{ item.item.name }}.pem"
+    csr_content: "{{ item.csr }}"
+    provider: ownca
+    ownca_path: "{{ wazuh_pki_dir }}/root-ca.pem"
+    ownca_privatekey_path: "{{ wazuh_pki_dir }}/root-ca.key"
+    ownca_not_after: "+{{ wazuh_cert_days }}d"
+    owner: "{{ wazuh_pki_owner }}"
+    group: "{{ wazuh_pki_group }}"
+    mode: "0644"
+  loop: "{{ wazuh_csrs.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

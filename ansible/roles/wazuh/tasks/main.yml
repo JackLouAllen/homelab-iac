@@ -1,0 +1,12 @@
+---
+- name: Prerequisites
+  ansible.builtin.import_tasks: prerequisites.yml
+  tags: [wazuh_prereq]
+
+- name: Packages
+  ansible.builtin.import_tasks: packages.yml
+  tags: [wazuh_packages]
+
+- name: Certificates
+  ansible.builtin.import_tasks: certs.yml
+  tags: [wazuh_certs]

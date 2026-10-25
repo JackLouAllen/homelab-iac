@@ -1,0 +1,25 @@
+---
+- name: Find the free space on /srv
+  ansible.builtin.set_fact:
+    wazuh_srv_free_gb: >-
+      {{ ((ansible_facts.mounts | selectattr('mount', 'equalto', '/srv')
+      | map(attribute='size_available') | first | default(0)) / 1024 / 1024 / 1024) | int }}
+
+- name: Check the host is big enough
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.memtotal_mb >= wazuh_min_memory_mb
+      - wazuh_srv_free_gb | int >= wazuh_min_free_gb
+    fail_msg: >-
+      Wazuh needs about {{ wazuh_min_memory_mb }} MB of RAM and {{ wazuh_min_free_gb }} GB free
+      on /srv; this host has {{ ansible_facts.memtotal_mb }} MB and {{ wazuh_srv_free_gb }} GB.
+
+# OpenSearch refuses to start with the default of 65530.
+- name: Raise vm.max_map_count for the indexer
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ wazuh_max_map_count }}"
+    sysctl_file: /etc/sysctl.d/70-wazuh.conf
+    sysctl_set: true
+    reload: false
+    state: present
