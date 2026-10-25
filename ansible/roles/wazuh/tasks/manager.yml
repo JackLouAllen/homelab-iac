@@ -1,0 +1,269 @@
+---
+- name: Check the passwords are supplied
+  ansible.builtin.assert:
+    that:
+      - wazuh_indexer_admin_password | length >= 16
+      - wazuh_api_admin_password | length >= 16
+      - wazuh_api_password | length >= 16
+    quiet: true
+  no_log: true
+
+# Whodata reads events from auditd through a socket made by this plugin. The config is the one
+# Wazuh itself writes, so it is created and loaded before the manager starts instead of racing
+# Wazuh's own auditd restart.
+- name: Install the audit dispatcher plugin that whodata needs
+  ansible.builtin.dnf:
+    name: audispd-plugins
+    state: present
+  when: wazuh_fim_whodata_paths | length > 0
+
+- name: Register the Wazuh audit plugin
+  ansible.builtin.copy:
+    content: |
+      active = yes
+      direction = out
+      path = /sbin/audisp-af_unix
+      type = always
+      args = 0640 /var/ossec/queue/sockets/audit string
+      format = binary
+    dest: /etc/audit/plugins.d/af_wazuh.conf
+    owner: root
+    group: wazuh
+    mode: "0644"
+  when: wazuh_fim_whodata_paths | length > 0
+  notify: Reload auditd
+
+- name: Move the scanner's large directories to the data volume
+  ansible.builtin.include_tasks:
+    file: relocate_one.yml
+    apply:
+      tags: [wazuh_manager]
+  loop: "{{ wazuh_relocated_dirs }}"
+  loop_control:
+    loop_var: wazuh_dir
+    label: "{{ wazuh_dir.src }}"
+
+- name: Turn vulnerability detection on or off
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: (<vulnerability-detection>\s*<enabled>)(?:yes|no)(</enabled>)
+    replace: \g<1>{{ 'yes' if wazuh_vulnerability_detection else 'no' }}\g<2>
+  notify: Restart the manager
+
+# ossec.conf holds several top-level blocks, so it is edited in place, not parsed as XML.
+- name: Point the manager at the local indexer
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: <host>https://[^<]*</host>
+    replace: <host>https://{{ wazuh_indexer_host }}:{{ wazuh_indexer_port }}</host>
+  notify: Restart the manager
+
+- name: Stop the update check
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: <update_check>[^<]*</update_check>
+    replace: <update_check>no</update_check>
+  notify: Restart the manager
+
+- name: Bind the agent listener
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: (<connection>secure</connection>)(?:\s*<local_ip>[^<]*</local_ip>)?(\s*<port>1514</port>)
+    replace: \1\n    <local_ip>{{ wazuh_remote_ip }}</local_ip>\2
+  notify: Restart the manager
+
+- name: Enable or disable agent enrollment
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: (<auth>\s*<disabled>)(?:yes|no)(</disabled>)
+    replace: \g<1>{{ 'no' if wazuh_authd_enabled else 'yes' }}\g<2>
+  notify: Restart the manager
+
+- name: Watch the critical paths with whodata
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: >-
+      <directories[^>]*>/etc,/usr/bin,/usr/sbin[^<]*</directories>\s*<directories[^>]*>/bin,/sbin[^<]*</directories>
+    replace: >-
+      <directories whodata="yes">{{ wazuh_fim_whodata_paths | join(',') }}</directories>\n    <directories>/bin,/sbin</directories>
+  notify: Restart the manager
+
+- name: Bind the API to loopback
+  ansible.builtin.template:
+    src: api.yaml.j2
+    dest: /var/ossec/api/configuration/api.yaml
+    owner: root
+    group: wazuh
+    mode: "0660"
+  notify: Restart the manager
+
+- name: Compute the credentials marker
+  ansible.builtin.set_fact:
+    wazuh_manager_marker: "{{ ('admin:' ~ wazuh_indexer_admin_password) | hash('sha256') }}"
+  no_log: true
+
+- name: Look at the stored credentials marker
+  ansible.builtin.stat:
+    path: /var/ossec/etc/.indexer-credentials.sha256
+    checksum_algorithm: sha1
+  register: wazuh_manager_marker_file
+
+- name: Store the indexer credentials in the manager keystore
+  when: >-
+    not wazuh_manager_marker_file.stat.exists
+    or wazuh_manager_marker_file.stat.checksum != ((wazuh_manager_marker ~ '\n') | hash('sha1'))
+  block:
+    - name: Add the indexer user name
+      ansible.builtin.command: /var/ossec/bin/wazuh-keystore -f indexer -k username
+      args:
+        stdin: admin
+      changed_when: true
+
+    - name: Add the indexer password
+      ansible.builtin.command: /var/ossec/bin/wazuh-keystore -f indexer -k password
+      args:
+        stdin: "{{ wazuh_indexer_admin_password }}"
+      changed_when: true
+      no_log: true
+
+    - name: Record that these credentials are stored
+      ansible.builtin.copy:
+        content: "{{ wazuh_manager_marker }}\n"
+        dest: /var/ossec/etc/.indexer-credentials.sha256
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      notify: Restart the manager
+
+- name: Test the manager configuration
+  ansible.builtin.command: /var/ossec/bin/wazuh-analysisd -t
+  changed_when: false
+
+- name: Apply pending manager changes before starting
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the manager
+  ansible.builtin.systemd_service:
+    name: wazuh-manager.service
+    enabled: true
+    state: started
+
+- name: Wait for the API
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_api_host }}"
+    port: "{{ wazuh_api_port }}"
+    timeout: 300
+
+# 200 means the API already accepts the password from SOPS; otherwise it is still the default.
+- name: Check the API admin password
+  ansible.builtin.uri:
+    url: https://{{ wazuh_api_host }}:{{ wazuh_api_port }}/security/user/authenticate?raw=true
+    method: POST
+    url_username: wazuh
+    url_password: "{{ wazuh_api_admin_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200, 401]
+  register: wazuh_api_check
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Check the dashboard API password
+  ansible.builtin.uri:
+    url: https://{{ wazuh_api_host }}:{{ wazuh_api_port }}/security/user/authenticate?raw=true
+    method: POST
+    url_username: wazuh-wui
+    url_password: "{{ wazuh_api_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200, 401]
+  register: wazuh_api_wui_check
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+# Changing a user's password revokes that user's tokens, so the admin account changes last.
+- name: Replace the default API passwords
+  when: wazuh_api_check.status != 200 or wazuh_api_wui_check.status != 200
+  block:
+    - name: Sign in as the API admin
+      ansible.builtin.uri:
+        url: https://{{ wazuh_api_host }}:{{ wazuh_api_port }}/security/user/authenticate?raw=true
+        method: POST
+        url_username: wazuh
+        url_password: "{{ wazuh_api_admin_password if wazuh_api_check.status == 200 else 'wazuh' }}"
+        force_basic_auth: true
+        validate_certs: false
+        return_content: true
+      register: wazuh_api_token
+      changed_when: false
+      no_log: true
+
+    - name: Set the dashboard API password
+      ansible.builtin.uri:
+        url: https://{{ wazuh_api_host }}:{{ wazuh_api_port }}/security/users/2
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ wazuh_api_token.content }}"
+        body_format: json
+        body:
+          password: "{{ wazuh_api_password }}"
+        validate_certs: false
+        status_code: 200
+      when: wazuh_api_wui_check.status != 200
+      no_log: true
+
+    - name: Set the admin API password
+      ansible.builtin.uri:
+        url: https://{{ wazuh_api_host }}:{{ wazuh_api_port }}/security/users/1
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ wazuh_api_token.content }}"
+        body_format: json
+        body:
+          password: "{{ wazuh_api_admin_password }}"
+        validate_certs: false
+        status_code: 200
+      when: wazuh_api_check.status != 200
+      no_log: true
+
+    - name: Confirm both API passwords now work
+      ansible.builtin.uri:
+        url: https://{{ wazuh_api_host }}:{{ wazuh_api_port }}/security/user/authenticate?raw=true
+        method: POST
+        url_username: "{{ item.user }}"
+        url_password: "{{ item.password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: 200
+      loop:
+        - {user: wazuh, password: "{{ wazuh_api_admin_password }}"}
+        - {user: wazuh-wui, password: "{{ wazuh_api_password }}"}
+      loop_control:
+        label: "{{ item.user }}"
+      check_mode: false
+      changed_when: false
+      no_log: true
+
+- name: Install the Wazuh log pruning units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - wazuh-prune.service
+    - wazuh-prune.timer
+  notify: Reload systemd for wazuh
+
+- name: Apply the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable Wazuh log pruning
+  ansible.builtin.systemd_service:
+    name: wazuh-prune.timer
+    enabled: true
+    state: started

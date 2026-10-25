@@ -1,0 +1,8 @@
+# Managed by Ansible. The Wazuh app talks to the manager API on loopback.
+hosts:
+  - default:
+      url: https://{{ wazuh_api_host }}
+      port: {{ wazuh_api_port }}
+      username: wazuh-wui
+      password: "{{ wazuh_api_password }}"
+      run_as: false

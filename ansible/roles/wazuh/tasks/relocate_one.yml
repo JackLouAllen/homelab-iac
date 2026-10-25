@@ -1,0 +1,63 @@
+---
+- name: Look at the directory
+  ansible.builtin.stat:
+    path: "{{ wazuh_dir.src }}"
+  register: wazuh_dir_stat
+
+- name: Make sure the directory exists
+  ansible.builtin.file:
+    path: "{{ wazuh_dir.src }}"
+    state: directory
+    owner: wazuh
+    group: wazuh
+    mode: "0750"
+  when: not wazuh_dir_stat.stat.exists
+
+- name: Look at the directory again
+  ansible.builtin.stat:
+    path: "{{ wazuh_dir.src }}"
+  register: wazuh_dir_stat
+
+- name: Check whether the directory is already a mount
+  ansible.builtin.command: mountpoint -q {{ wazuh_dir.src }}
+  register: wazuh_dir_mount
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Move the directory to the data volume
+  when: wazuh_dir_mount.rc != 0
+  block:
+    - name: Stop the manager before moving its data
+      ansible.builtin.systemd_service:
+        name: wazuh-manager.service
+        state: stopped
+
+    - name: Create the parent directory on the data volume
+      ansible.builtin.file:
+        path: "{{ wazuh_dir.dest | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create the new location
+      ansible.builtin.file:
+        path: "{{ wazuh_dir.dest }}"
+        state: directory
+        owner: "{{ wazuh_dir_stat.stat.pw_name }}"
+        group: "{{ wazuh_dir_stat.stat.gr_name }}"
+        mode: "{{ wazuh_dir_stat.stat.mode }}"
+
+    # Regenerable (scratch space, a re-downloadable feed), and it must not keep using /var.
+    - name: Empty the old directory
+      ansible.builtin.command: find {{ wazuh_dir.src }} -mindepth 1 -delete  # noqa: command-instead-of-module
+      changed_when: true
+
+    - name: Mount the new location over it
+      ansible.posix.mount:
+        path: "{{ wazuh_dir.src }}"
+        src: "{{ wazuh_dir.dest }}"
+        fstype: none
+        opts: bind
+        state: mounted

@@ -13,6 +13,52 @@ wazuh_max_map_count: 262144
 wazuh_data_root: /srv/wazuh
 wazuh_indexer_heap: 4g
 
+# The indexer listens on loopback only; Filebeat and the dashboard are on the same host.
+wazuh_indexer_node_name: wazuh-indexer
+wazuh_indexer_cluster_name: wazuh-cluster
+wazuh_indexer_host: 127.0.0.1
+wazuh_indexer_port: 9200
+wazuh_indexer_data: "{{ wazuh_data_root }}/indexer/data"
+wazuh_indexer_tmp: "{{ wazuh_data_root }}/indexer/tmp"
+# These DNs must match the subjects issued below (organisation wazuh_pki_org).
+wazuh_admin_dn: "CN=admin,OU=Wazuh,O={{ wazuh_pki_org }}"
+wazuh_indexer_dn: "CN=wazuh-indexer,OU=Wazuh,O={{ wazuh_pki_org }}"
+
+# Manager: nothing listens for agents until ovh1 exists. Then set wazuh_remote_ip to the tailnet
+# address, set wazuh_authd_enabled, add 1514/tcp and 1515/tcp to baseline_tailnet_ports and
+# to the Tailscale policy.
+wazuh_remote_ip: 127.0.0.1
+wazuh_authd_enabled: false
+wazuh_api_host: 127.0.0.1
+wazuh_api_port: 55000
+wazuh_api_request_timeout: 60
+# Whodata (who changed it) on the critical paths; the rest stays on the default schedule.
+wazuh_fim_whodata_paths: [/etc, /usr/bin, /usr/sbin, /boot, /root]
+wazuh_log_retention_days: 90
+wazuh_vulnerability_detection: true
+
+# The vulnerability scanner unpacks a feed of about 7 GB through about 10 GB of scratch space.
+# /var is 18 GiB, so both live on the data volume and are bind-mounted back. Both are rebuilt
+# by the manager, so the old directory is emptied before it is mounted over.
+wazuh_relocated_dirs:
+  - {src: /var/ossec/tmp, dest: "{{ wazuh_data_root }}/ossec/tmp"}
+  - {src: /var/ossec/queue/vd, dest: "{{ wazuh_data_root }}/ossec/queue-vd"}
+
+# Files Wazuh distributes outside its packages, pinned by hash.
+wazuh_template_url: https://raw.githubusercontent.com/wazuh/wazuh/v4.14.9/extensions/elasticsearch/7.x/wazuh-template.json
+wazuh_template_sha256: b2d182f49cc68957849e77fd2d79528fd2273ebaec1106c9661c9e320577a089
+wazuh_filebeat_module_url: https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.5.tar.gz
+wazuh_filebeat_module_sha256: 7a8c67c47b22f89ab271b7e35f108f18b2215b7aa411cdd23c9994393070d38d
+
+# Off until the services run; turn on and measure with systemd-analyze security afterwards.
+wazuh_sandbox_units: false
+
+# Supplied at run time from a tmpfs copy of inventory/secrets/wazuh.sops.yml.
+wazuh_indexer_admin_password: ""
+wazuh_dashboard_password: ""
+wazuh_api_admin_password: ""
+wazuh_api_password: ""
+
 # Minimum host size before the role proceeds.
 wazuh_min_memory_mb: 12000
 wazuh_min_free_gb: 30
@@ -29,3 +75,8 @@ wazuh_certs:
   - {name: indexer, cn: wazuh-indexer, san: ["DNS:wazuh-indexer", "DNS:localhost", "IP:127.0.0.1"], server: true}
   - {name: filebeat, cn: wazuh-manager, san: ["DNS:wazuh-manager", "DNS:localhost", "IP:127.0.0.1"], server: false}
   - {name: dashboard, cn: wazuh-dashboard, san: ["DNS:wazuh-dashboard", "DNS:localhost", "IP:127.0.0.1"], server: true}
+
+# Dashboard: loopback only; nginx publishes it to the tailnet as wazuh.vaultnet.xyz.
+wazuh_dashboard_host: 127.0.0.1
+wazuh_dashboard_port: 5601
+wazuh_dashboard_session_minutes: 15

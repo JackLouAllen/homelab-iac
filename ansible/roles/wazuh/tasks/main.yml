@@ -10,3 +10,19 @@
 - name: Certificates
   ansible.builtin.import_tasks: certs.yml
   tags: [wazuh_certs]
+
+- name: Indexer
+  ansible.builtin.import_tasks: indexer.yml
+  tags: [wazuh_indexer]
+
+- name: Filebeat
+  ansible.builtin.import_tasks: filebeat.yml
+  tags: [wazuh_filebeat]
+
+- name: Manager
+  ansible.builtin.import_tasks: manager.yml
+  tags: [wazuh_manager]
+
+- name: Dashboard
+  ansible.builtin.import_tasks: dashboard.yml
+  tags: [wazuh_dashboard]

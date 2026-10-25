@@ -1,0 +1,136 @@
+---
+- name: Check the passwords are supplied
+  ansible.builtin.assert:
+    that:
+      - wazuh_dashboard_password | length >= 16
+      - wazuh_api_password | length >= 16
+    quiet: true
+  no_log: true
+
+- name: Create the dashboard certificate directory
+  ansible.builtin.file:
+    path: /etc/wazuh-dashboard/certs
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0500"
+
+- name: Install the dashboard certificates
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: /etc/wazuh-dashboard/certs/{{ item.dest }}
+    remote_src: true
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0400"
+  loop:
+    - {src: "{{ wazuh_pki_dir }}/root-ca.pem", dest: root-ca.pem}
+    - {src: "{{ wazuh_pki_dir }}/dashboard/dashboard.pem", dest: dashboard.pem}
+    - {src: "{{ wazuh_pki_dir }}/dashboard/dashboard.key", dest: dashboard-key.pem}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Restart the dashboard
+
+- name: Configure the dashboard
+  ansible.builtin.template:
+    src: opensearch_dashboards.yml.j2
+    dest: /etc/wazuh-dashboard/opensearch_dashboards.yml
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+  notify: Restart the dashboard
+
+# The Wazuh app reads its API connection from this file, which holds the API password.
+- name: Create the Wazuh app directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0750"
+  loop:
+    - /usr/share/wazuh-dashboard/data/wazuh
+    - /usr/share/wazuh-dashboard/data/wazuh/config
+
+- name: Configure the Wazuh app API connection
+  ansible.builtin.template:
+    src: wazuh-app.yml.j2
+    dest: /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0600"
+  no_log: true
+  notify: Restart the dashboard
+
+# The keystore cannot be read back, so a hash of what was stored marks it as current.
+- name: Compute the credentials marker
+  ansible.builtin.set_fact:
+    wazuh_dashboard_marker: "{{ ('kibanaserver:' ~ wazuh_dashboard_password) | hash('sha256') }}"
+  no_log: true
+
+- name: Look at the stored credentials marker
+  ansible.builtin.stat:
+    path: /etc/wazuh-dashboard/.credentials.sha256
+    checksum_algorithm: sha1
+  register: wazuh_dashboard_marker_file
+
+- name: Store the indexer credentials in the dashboard keystore
+  when: >-
+    not wazuh_dashboard_marker_file.stat.exists
+    or wazuh_dashboard_marker_file.stat.checksum != ((wazuh_dashboard_marker ~ '\n') | hash('sha1'))
+  block:
+    - name: Add the indexer user name
+      ansible.builtin.command: >-
+        /usr/share/wazuh-dashboard/bin/opensearch-dashboards-keystore --allow-root
+        add opensearch.username --stdin --force
+      args:
+        stdin: kibanaserver
+      changed_when: true
+
+    - name: Add the indexer password
+      ansible.builtin.command: >-
+        /usr/share/wazuh-dashboard/bin/opensearch-dashboards-keystore --allow-root
+        add opensearch.password --stdin --force
+      args:
+        stdin: "{{ wazuh_dashboard_password }}"
+      changed_when: true
+      no_log: true
+
+    - name: Record that these credentials are stored
+      ansible.builtin.copy:
+        content: "{{ wazuh_dashboard_marker }}\n"
+        dest: /etc/wazuh-dashboard/.credentials.sha256
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      notify: Restart the dashboard
+
+# Running as root can leave the keystore owned by root.
+- name: Keep the keystore readable only by the dashboard
+  ansible.builtin.file:
+    path: /etc/wazuh-dashboard/opensearch_dashboards.keystore
+    owner: wazuh-dashboard
+    group: wazuh-dashboard
+    mode: "0640"
+
+- name: Apply pending dashboard changes before starting
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the dashboard
+  ansible.builtin.systemd_service:
+    name: wazuh-dashboard.service
+    enabled: true
+    state: started
+
+- name: Wait for the dashboard to answer
+  ansible.builtin.uri:
+    url: https://{{ wazuh_dashboard_host }}:{{ wazuh_dashboard_port }}/app/login
+    ca_path: "{{ wazuh_pki_dir }}/root-ca.pem"
+    status_code: [200, 302]
+  register: wazuh_dashboard_up
+  until: wazuh_dashboard_up.status in [200, 302]
+  retries: 24
+  delay: 10
+  check_mode: false
+  changed_when: false

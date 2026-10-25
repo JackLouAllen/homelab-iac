@@ -1,0 +1,19 @@
+# Managed by Ansible. Loopback only; nginx publishes it on the tailnet.
+server.host: {{ wazuh_dashboard_host }}
+server.port: {{ wazuh_dashboard_port }}
+opensearch.hosts: https://{{ wazuh_indexer_host }}:{{ wazuh_indexer_port }}
+opensearch.ssl.verificationMode: certificate
+# The user name and password are in the dashboard keystore.
+opensearch.requestHeadersAllowlist: ["securitytenant","Authorization"]
+opensearch_security.multitenancy.enabled: false
+opensearch_security.readonly_mode.roles: ["kibana_read_only"]
+server.ssl.enabled: true
+server.ssl.key: "/etc/wazuh-dashboard/certs/dashboard-key.pem"
+server.ssl.certificate: "/etc/wazuh-dashboard/certs/dashboard.pem"
+opensearch.ssl.certificateAuthorities: ["/etc/wazuh-dashboard/certs/root-ca.pem"]
+uiSettings.overrides.defaultRoute: /app/wz-home
+# The session cookie is only sent over HTTPS (nginx terminates the public TLS).
+opensearch_security.cookie.secure: true
+opensearch_security.cookie.ttl: {{ wazuh_dashboard_session_minutes * 60000 }}
+opensearch_security.session.ttl: {{ wazuh_dashboard_session_minutes * 60000 }}
+opensearch_security.session.keepalive: true

@@ -1,0 +1,24 @@
+# Managed by Ansible
+[Service]
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths={{ wazuh_data_root }}/indexer /var/log/wazuh-indexer /var/lib/wazuh-indexer /run/wazuh-indexer /etc/wazuh-indexer
+ProtectHome=true
+ProtectProc=invisible
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027

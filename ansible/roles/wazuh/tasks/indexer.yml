@@ -1,0 +1,184 @@
+---
+- name: Check the indexer passwords are supplied
+  ansible.builtin.assert:
+    that:
+      - wazuh_indexer_admin_password | length >= 16
+      - wazuh_dashboard_password | length >= 16
+    fail_msg: >-
+      Pass wazuh_indexer_admin_password and wazuh_dashboard_password with -e @file from a
+      tmpfs copy of inventory/secrets/wazuh.sops.yml (at least 16 characters each).
+    quiet: true
+  no_log: true
+
+- name: Create the indexer directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ wazuh_data_root }}", owner: root, group: root, mode: "0755"}
+    - {path: "{{ wazuh_data_root }}/indexer", owner: wazuh-indexer, group: wazuh-indexer, mode: "0750"}
+    - {path: "{{ wazuh_indexer_data }}", owner: wazuh-indexer, group: wazuh-indexer, mode: "0750"}
+    - {path: "{{ wazuh_indexer_tmp }}", owner: wazuh-indexer, group: wazuh-indexer, mode: "0750"}
+    - {path: /etc/wazuh-indexer/certs, owner: wazuh-indexer, group: wazuh-indexer, mode: "0500"}
+    - {path: /etc/wazuh-indexer/jvm.options.d, owner: wazuh-indexer, group: wazuh-indexer, mode: "0750"}
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install the indexer certificates
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: /etc/wazuh-indexer/certs/{{ item.dest }}
+    remote_src: true
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0400"
+  loop:
+    - {src: "{{ wazuh_pki_dir }}/root-ca.pem", dest: root-ca.pem}
+    - {src: "{{ wazuh_pki_dir }}/indexer/indexer.pem", dest: indexer.pem}
+    - {src: "{{ wazuh_pki_dir }}/indexer/indexer.key", dest: indexer-key.pem}
+    - {src: "{{ wazuh_pki_dir }}/admin/admin.pem", dest: admin.pem}
+    - {src: "{{ wazuh_pki_dir }}/admin/admin.key", dest: admin-key.pem}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Restart the indexer
+
+- name: Configure the indexer
+  ansible.builtin.template:
+    src: opensearch.yml.j2
+    dest: /etc/wazuh-indexer/opensearch.yml
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0660"
+  notify: Restart the indexer
+
+- name: Set the indexer heap and heap dump location
+  ansible.builtin.template:
+    src: indexer-heap.options.j2
+    dest: /etc/wazuh-indexer/jvm.options.d/heap.options
+    owner: wazuh-indexer
+    group: wazuh-indexer
+    mode: "0660"
+  notify: Restart the indexer
+
+- name: Point the indexer at its temp directory
+  ansible.builtin.template:
+    src: indexer-sysconfig.j2
+    dest: /etc/sysconfig/wazuh-indexer
+    owner: root
+    group: wazuh-indexer
+    mode: "0640"
+  notify: Restart the indexer
+
+- name: Create the indexer service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-indexer.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Sandbox the indexer service
+  ansible.builtin.template:
+    src: indexer-sandbox.conf.j2
+    dest: /etc/systemd/system/wazuh-indexer.service.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: wazuh_sandbox_units
+  notify:
+    - Reload systemd for wazuh
+    - Restart the indexer
+
+- name: Remove the indexer sandbox when it is switched off
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-indexer.service.d/hardening.conf
+    state: absent
+  when: not wazuh_sandbox_units
+  notify:
+    - Reload systemd for wazuh
+    - Restart the indexer
+
+- name: Apply pending indexer changes before starting
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the indexer
+  ansible.builtin.systemd_service:
+    name: wazuh-indexer.service
+    enabled: true
+    state: started
+
+- name: Wait for the indexer to listen
+  ansible.builtin.wait_for:
+    host: "{{ wazuh_indexer_host }}"
+    port: "{{ wazuh_indexer_port }}"
+    timeout: 300
+
+# 200 means the security index already accepts this password. Before the first
+# initialisation, or after a password change, it answers 401 or 503.
+- name: Check the admin credentials
+  ansible.builtin.uri:
+    url: https://{{ wazuh_indexer_host }}:{{ wazuh_indexer_port }}/
+    url_username: admin
+    url_password: "{{ wazuh_indexer_admin_password }}"
+    force_basic_auth: true
+    ca_path: "{{ wazuh_pki_dir }}/root-ca.pem"
+    status_code: [200, 401, 403, 503]
+  register: wazuh_indexer_auth
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Load the users and security configuration
+  when: wazuh_indexer_auth.status != 200
+  block:
+    - name: Write the indexer users
+      ansible.builtin.template:
+        src: internal_users.yml.j2
+        dest: /etc/wazuh-indexer/opensearch-security/internal_users.yml
+        owner: wazuh-indexer
+        group: wazuh-indexer
+        mode: "0640"
+      no_log: true
+
+    - name: Run the security initialisation
+      ansible.builtin.command:
+        argv:
+          - /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh
+          - -cd
+          - /etc/wazuh-indexer/opensearch-security/
+          - -nhnv
+          - -icl
+          - -cacert
+          - /etc/wazuh-indexer/certs/root-ca.pem
+          - -cert
+          - /etc/wazuh-indexer/certs/admin.pem
+          - -key
+          - /etc/wazuh-indexer/certs/admin-key.pem
+          - -h
+          - "{{ wazuh_indexer_host }}"
+          - -p
+          - "{{ wazuh_indexer_port }}"
+      environment:
+        JAVA_HOME: /usr/share/wazuh-indexer/jdk
+      changed_when: true
+
+    # The security plugin needs a few seconds to apply what securityadmin loaded; until then
+    # the indexer answers 503.
+    - name: Confirm the admin password now works
+      ansible.builtin.uri:
+        url: https://{{ wazuh_indexer_host }}:{{ wazuh_indexer_port }}/
+        url_username: admin
+        url_password: "{{ wazuh_indexer_admin_password }}"
+        force_basic_auth: true
+        ca_path: "{{ wazuh_pki_dir }}/root-ca.pem"
+        status_code: [200, 401, 403, 503]
+      register: wazuh_indexer_confirm
+      until: wazuh_indexer_confirm.status == 200
+      retries: 12
+      delay: 5
+      check_mode: false
+      changed_when: false
+      no_log: true

@@ -1,0 +1,18 @@
+---
+# Managed by Ansible. Only the two accounts Wazuh uses; the shipped demo accounts
+# (kibanaro, logstash, readall, ...) carry well-known default passwords and are not created.
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+admin:
+  hash: "{{ wazuh_indexer_admin_password | password_hash('bcrypt', rounds=12) | regex_replace('^[$]2b[$]', '$2y$') }}"
+  reserved: true
+  backend_roles:
+  - "admin"
+  description: "Administrator, also used by Filebeat"
+
+kibanaserver:
+  hash: "{{ wazuh_dashboard_password | password_hash('bcrypt', rounds=12) | regex_replace('^[$]2b[$]', '$2y$') }}"
+  reserved: true
+  description: "Service user of the dashboard"

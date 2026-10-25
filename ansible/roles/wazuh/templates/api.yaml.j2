@@ -1,0 +1,8 @@
+# Managed by Ansible. The API listens on loopback only; the dashboard is on the same host.
+host: ['{{ wazuh_api_host }}']
+port: {{ wazuh_api_port }}
+
+# The default of 10 seconds is too short for the first password change on a fresh security
+# database; the request is aborted with a 500 though the change is applied.
+intervals:
+  request_timeout: {{ wazuh_api_request_timeout }}

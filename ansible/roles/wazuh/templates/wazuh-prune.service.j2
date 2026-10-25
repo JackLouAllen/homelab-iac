@@ -1,0 +1,6 @@
+[Unit]
+Description=Delete rotated Wazuh alert logs older than {{ wazuh_log_retention_days }} days
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find /var/ossec/logs/alerts /var/ossec/logs/archives -type f -name '*.gz' -mtime +{{ wazuh_log_retention_days }} -print -delete

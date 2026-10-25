@@ -1,0 +1,140 @@
+---
+- name: Check the indexer password is supplied
+  ansible.builtin.assert:
+    that: wazuh_indexer_admin_password | length >= 16
+    quiet: true
+  no_log: true
+
+- name: Create the Filebeat certificate directory
+  ansible.builtin.file:
+    path: /etc/filebeat/certs
+    state: directory
+    owner: root
+    group: root
+    mode: "0500"
+
+# The manager's indexer connection reads these same files.
+- name: Install the Filebeat certificates
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: /etc/filebeat/certs/{{ item.dest }}
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0400"
+  loop:
+    - {src: "{{ wazuh_pki_dir }}/root-ca.pem", dest: root-ca.pem}
+    - {src: "{{ wazuh_pki_dir }}/filebeat/filebeat.pem", dest: filebeat.pem}
+    - {src: "{{ wazuh_pki_dir }}/filebeat/filebeat.key", dest: filebeat-key.pem}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify:
+    - Restart filebeat
+    - Restart the manager
+
+- name: Download the Wazuh alert template
+  ansible.builtin.get_url:
+    url: "{{ wazuh_template_url }}"
+    dest: /etc/filebeat/wazuh-template.json
+    checksum: "sha256:{{ wazuh_template_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart filebeat
+
+- name: Download the Wazuh Filebeat module
+  ansible.builtin.get_url:
+    url: "{{ wazuh_filebeat_module_url }}"
+    dest: /var/cache/wazuh-filebeat-module.tar.gz
+    checksum: "sha256:{{ wazuh_filebeat_module_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unpack the Wazuh Filebeat module
+  ansible.builtin.unarchive:
+    src: /var/cache/wazuh-filebeat-module.tar.gz
+    dest: /usr/share/filebeat/module
+    remote_src: true
+    owner: root
+    group: root
+    creates: /usr/share/filebeat/module/wazuh/module.yml
+  notify: Restart filebeat
+
+- name: Make the module readable
+  ansible.builtin.file:
+    path: /usr/share/filebeat/module/wazuh
+    state: directory
+    recurse: true
+    mode: u=rwX,go=rX
+
+- name: Configure Filebeat
+  ansible.builtin.template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart filebeat
+
+# The keystore cannot be read back, so a hash of what was stored marks it as current.
+- name: Compute the credentials marker
+  ansible.builtin.set_fact:
+    wazuh_filebeat_marker: "{{ ('admin:' ~ wazuh_indexer_admin_password) | hash('sha256') }}"
+  no_log: true
+
+- name: Look at the stored credentials marker
+  ansible.builtin.stat:
+    path: /var/lib/filebeat/.credentials.sha256
+    checksum_algorithm: sha1
+  register: wazuh_filebeat_marker_file
+
+- name: Store the indexer credentials in the Filebeat keystore
+  when: >-
+    not wazuh_filebeat_marker_file.stat.exists
+    or wazuh_filebeat_marker_file.stat.checksum != ((wazuh_filebeat_marker ~ '\n') | hash('sha1'))
+  block:
+    - name: Create the keystore
+      ansible.builtin.command: /usr/bin/filebeat keystore create
+      args:
+        creates: /var/lib/filebeat/filebeat.keystore
+
+    - name: Add the indexer user name
+      ansible.builtin.command: /usr/bin/filebeat keystore add username --stdin --force
+      args:
+        stdin: admin
+      changed_when: true
+
+    - name: Add the indexer password
+      ansible.builtin.command: /usr/bin/filebeat keystore add password --stdin --force
+      args:
+        stdin: "{{ wazuh_indexer_admin_password }}"
+      changed_when: true
+      no_log: true
+
+    - name: Record that these credentials are stored
+      ansible.builtin.copy:
+        content: "{{ wazuh_filebeat_marker }}\n"
+        dest: /var/lib/filebeat/.credentials.sha256
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      notify: Restart filebeat
+
+- name: Apply pending Filebeat changes before starting
+  ansible.builtin.meta: flush_handlers
+
+- name: Start Filebeat
+  ansible.builtin.systemd_service:
+    name: filebeat.service
+    enabled: true
+    state: started
+
+- name: Check Filebeat can reach the indexer
+  ansible.builtin.command: /usr/bin/filebeat test output
+  register: wazuh_filebeat_output
+  until: wazuh_filebeat_output.rc == 0
+  retries: 6
+  delay: 5
+  changed_when: false
