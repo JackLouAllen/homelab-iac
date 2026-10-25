@@ -19,3 +19,13 @@ podman_host_service_users:
   - {name: runner, uid: 2003, subid_start: 331072}
 
 edge_acme_staging: false
+
+# Private (tailnet) names. The dashboard speaks TLS on loopback with the Wazuh local CA, which
+# nginx verifies.
+edge_private_sites:
+  - {host: edge.vaultnet.xyz, upstream: "", respond_text: edge ok, respond_status: 200}
+  - host: wazuh.vaultnet.xyz
+    upstream: 127.0.0.1:5601
+    upstream_scheme: https
+    upstream_ca: /etc/wazuh-pki/root-ca.pem
+    upstream_name: localhost

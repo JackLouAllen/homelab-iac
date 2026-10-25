@@ -88,7 +88,12 @@ http {
 
 {% if site.upstream | length > 0 %}
         location / {
-            proxy_pass http://{{ site.upstream }};
+            proxy_pass {{ site.upstream_scheme | default('http') }}://{{ site.upstream }};
+{% if site.upstream_scheme | default('http') == 'https' %}
+            proxy_ssl_trusted_certificate {{ site.upstream_ca }};
+            proxy_ssl_verify on;
+            proxy_ssl_name {{ site.upstream_name | default('localhost') }};
+{% endif %}
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $remote_addr;
