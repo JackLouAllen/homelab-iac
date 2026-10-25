@@ -1,0 +1,37 @@
+// Tailnet access policy. Paste into the Tailscale admin console (Access controls) and use the
+// preview and tests there before saving. Devices are tagged in the console:
+//   oci1, ovh1   -> tag:server
+//   Synology     -> tag:backup
+//   phone        -> tag:mobile
+// The laptop and desktop stay user-owned and are matched through autogroup:admin.
+{
+	"tagOwners": {
+		"tag:server": ["autogroup:admin"],
+		"tag:backup": ["autogroup:admin"],
+		"tag:mobile": ["autogroup:admin"],
+	},
+
+	"grants": [
+		// Laptop and desktop: SSH and private HTTPS on servers.
+		{"src": ["autogroup:admin"], "dst": ["tag:server"], "ip": ["tcp:22", "tcp:443"]},
+
+		// Laptop and desktop: manage the NAS over SSH and DSM HTTPS.
+		{"src": ["autogroup:admin"], "dst": ["tag:backup"], "ip": ["tcp:22", "tcp:5001"]},
+
+		// Phone: private web services only, never SSH.
+		{"src": ["tag:mobile"], "dst": ["tag:server"], "ip": ["tcp:443"]},
+
+		// Servers push backups to the NAS over SFTP, and nothing else on it.
+		{"src": ["tag:server"], "dst": ["tag:backup"], "ip": ["tcp:22"]},
+
+		// Add when the service exists, not before:
+		//   Wazuh agents to the manager: {"src": ["tag:server"], "dst": ["tag:server"], "ip": ["tcp:1514", "tcp:1515"]}
+		//   Uptime Kuma checking private services: tcp:443 between servers
+	],
+
+	"tests": [
+		{"src": "tag:mobile", "accept": ["tag:server:443"], "deny": ["tag:server:22", "tag:backup:22"]},
+		{"src": "tag:server", "accept": ["tag:backup:22"], "deny": ["tag:backup:5001", "tag:backup:445"]},
+		{"src": "tag:backup", "deny": ["tag:server:22", "tag:server:443"]},
+	],
+}
