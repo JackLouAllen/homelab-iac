@@ -17,7 +17,13 @@ baseline_firewalld_remove_services:
 # Leave false until Tailscale is up; the role asserts the interface exists.
 baseline_ssh_tailscale_only: false
 baseline_tailscale_interface: tailscale0
-baseline_tailscale_zone: trusted
+baseline_tailscale_zone: tailnet
+# Only these are reachable from the tailnet; the policy in tailscale/policy.hujson is a second layer.
+baseline_tailnet_services:
+  - ssh
+  - https
+# Extra ports as "1514/tcp", added per service.
+baseline_tailnet_ports: []
 
 baseline_chrony_servers: []
 

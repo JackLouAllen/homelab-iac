@@ -21,13 +21,64 @@
         that: baseline_tailscale_interface in ansible_facts.interfaces
         fail_msg: "{{ baseline_tailscale_interface }} is missing; bring Tailscale up first."
 
-    - name: Trust the Tailscale interface
+    - name: Create the tailnet zone
       ansible.posix.firewalld:
         zone: "{{ baseline_tailscale_zone }}"
-        interface: "{{ baseline_tailscale_interface }}"
+        permanent: true
+        state: present
+
+    # A zone added to the saved configuration is unknown to the running firewalld until it reloads.
+    - name: List the zones the running firewalld knows
+      ansible.builtin.command: firewall-cmd --get-zones
+      register: baseline_firewalld_zones
+      changed_when: false
+      check_mode: false
+
+    - name: Load the new zone
+      ansible.builtin.command: firewall-cmd --reload
+      when: baseline_tailscale_zone not in baseline_firewalld_zones.stdout.split()
+      changed_when: true
+
+    - name: Allow the tailnet services
+      ansible.posix.firewalld:
+        zone: "{{ baseline_tailscale_zone }}"
+        service: "{{ item }}"
         permanent: true
         immediate: true
         state: enabled
+      loop: "{{ baseline_tailnet_services }}"
+
+    - name: Allow the extra tailnet ports
+      ansible.posix.firewalld:
+        zone: "{{ baseline_tailscale_zone }}"
+        port: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ baseline_tailnet_ports }}"
+
+    - name: Find the zone of the Tailscale interface
+      ansible.builtin.command: firewall-cmd --get-zone-of-interface={{ baseline_tailscale_interface }}
+      register: baseline_tailnet_current_zone
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    # change-interface moves the interface in one step, so SSH over the tailnet never falls
+    # into a zone that has no rule for it.
+    - name: Move the Tailscale interface into the tailnet zone permanently
+      ansible.builtin.command: >-
+        firewall-cmd --permanent --zone={{ baseline_tailscale_zone }}
+        --change-interface={{ baseline_tailscale_interface }}
+      when: baseline_tailnet_current_zone.stdout != baseline_tailscale_zone
+      changed_when: true
+
+    - name: Move the Tailscale interface into the tailnet zone now
+      ansible.builtin.command: >-
+        firewall-cmd --zone={{ baseline_tailscale_zone }}
+        --change-interface={{ baseline_tailscale_interface }}
+      when: baseline_tailnet_current_zone.stdout != baseline_tailscale_zone
+      changed_when: true
 
     - name: Remove SSH from the default zone
       ansible.posix.firewalld:
