@@ -32,3 +32,10 @@ edge_private_sites:
 
 # systemd sandboxes for the Wazuh indexer and dashboard (the manager is not sandboxed).
 wazuh_sandbox_units: true
+
+# Backups to the Synology over SFTP on the tailnet. The password and the pinned NAS host key are
+# in inventory/secrets/restic.sops.yml.
+restic_sftp_host: rackstation
+restic_sftp_user: backup
+restic_repositories:
+  - {name: nas, url: "sftp:nas-backup:/backups/oci1"}
