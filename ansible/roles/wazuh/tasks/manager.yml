@@ -136,6 +136,23 @@
       no_log: true
       notify: Restart the manager
 
+# The second <ossec_config> block already holds the shipped localfile entries. The marker keeps
+# this block in place across runs, so the edit is idempotent.
+- name: Read extra JSON logs
+  ansible.builtin.blockinfile:
+    path: /var/ossec/etc/ossec.conf
+    insertbefore: </ossec_config>
+    marker: "<!-- {mark} ANSIBLE MANAGED: extra JSON logs -->"
+    block: |
+      {% for log in wazuh_json_logs %}
+        <localfile>
+          <log_format>json</log_format>
+          <location>{{ log }}</location>
+        </localfile>
+      {% endfor %}
+  when: wazuh_json_logs | length > 0
+  notify: Restart the manager
+
 - name: Install the custom rules
   ansible.builtin.template:
     src: local_rules.xml.j2

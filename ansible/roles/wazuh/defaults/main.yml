@@ -80,3 +80,7 @@ wazuh_certs:
 wazuh_dashboard_host: 127.0.0.1
 wazuh_dashboard_port: 5601
 wazuh_dashboard_session_minutes: 15
+
+# Extra JSON log files the manager reads (one object per line). CrowdSec writes its alerts here.
+wazuh_json_logs:
+  - /var/log/crowdsec/alerts.json

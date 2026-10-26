@@ -16,4 +16,18 @@
     </mitre>
   </rule>
 
+  <!--
+    CrowdSec writes one JSON line per alert (see the crowdsec role). The scenarios fire on repeated
+    probing of the public names or of SSH, which is routine on the internet, so this is visible
+    but not urgent.
+  -->
+  <rule id="100200" level="8">
+    <decoded_as>json</decoded_as>
+    <field name="program">crowdsec</field>
+    <description>CrowdSec detected $(scenario) from $(source_ip).</description>
+    <mitre>
+      <id>T1595</id>
+    </mitre>
+  </rule>
+
 </group>
