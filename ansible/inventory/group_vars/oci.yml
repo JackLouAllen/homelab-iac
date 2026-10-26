@@ -39,3 +39,8 @@ restic_sftp_host: rackstation
 restic_sftp_user: backup
 restic_repositories:
   - {name: nas, url: "sftp:nas-backup:/backups/oci1"}
+
+# Wazuh agents (the Windows desktop) report to the manager over the tailnet. The policy in
+# tailscale/policy.hujson allows only the admin's own devices to reach it.
+baseline_tailnet_ports:
+  - 1514/tcp

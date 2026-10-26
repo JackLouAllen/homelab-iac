@@ -24,14 +24,18 @@
 		// Servers push backups to the NAS over SFTP, and nothing else on it.
 		{"src": ["tag:server"], "dst": ["tag:backup"], "ip": ["tcp:22"]},
 
+		// Wazuh agents on the admin's own devices (the Windows desktop) report to the manager. Agents
+		// authenticate with a key, so enrollment (1515) stays closed.
+		{"src": ["autogroup:admin"], "dst": ["tag:server"], "ip": ["tcp:1514"]},
+
 		// Add when the service exists, not before:
-		//   Wazuh agents to the manager: {"src": ["tag:server"], "dst": ["tag:server"], "ip": ["tcp:1514", "tcp:1515"]}
+		//   A Wazuh agent on ovh1 reporting to oci1: {"src": ["tag:server"], "dst": ["tag:server"], "ip": ["tcp:1514"]}
 		//   Uptime Kuma checking private services: tcp:443 between servers
 	],
 
 	"tests": [
-		{"src": "tag:mobile", "accept": ["tag:server:443"], "deny": ["tag:server:22", "tag:backup:22"]},
+		{"src": "tag:mobile", "accept": ["tag:server:443"], "deny": ["tag:server:22", "tag:server:1514", "tag:backup:22"]},
 		{"src": "tag:server", "accept": ["tag:backup:22"], "deny": ["tag:backup:5001", "tag:backup:445"]},
-		{"src": "tag:backup", "deny": ["tag:server:22", "tag:server:443"]},
+		{"src": "tag:backup", "deny": ["tag:server:22", "tag:server:443", "tag:server:1514"]},
 	],
 }
