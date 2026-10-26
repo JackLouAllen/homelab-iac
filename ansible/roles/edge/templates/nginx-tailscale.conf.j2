@@ -4,4 +4,9 @@ After=tailscaled.service
 Wants=tailscaled.service
 
 [Service]
+# A drop-in's ExecStartPre lines run after the stock unit's, and the stock "nginx -t" binds the
+# tailnet address, which does not exist yet at boot. Clear the list and put the wait first.
+ExecStartPre=
+ExecStartPre=/usr/bin/rm -f /run/nginx.pid
 ExecStartPre=/usr/bin/bash -c 'for i in $$(seq 1 60); do /usr/sbin/ip -4 addr show dev tailscale0 | grep -q "inet {{ edge_tailnet_ip }}/" && exit 0; sleep 1; done; exit 1'
+ExecStartPre=/usr/sbin/nginx -t
