@@ -28,6 +28,31 @@
     - Reload systemd for crowdsec
     - Restart crowdsec
 
+- name: Create the hub update service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/crowdsec-hubupdate.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Sandbox the hub update service
+  ansible.builtin.template:
+    src: crowdsec-hubupdate-sandbox.conf.j2
+    dest: /etc/systemd/system/crowdsec-hubupdate.service.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: crowdsec_sandbox_units
+  notify: Reload systemd for crowdsec
+
+- name: Remove the hub update sandbox when it is switched off
+  ansible.builtin.file:
+    path: /etc/systemd/system/crowdsec-hubupdate.service.d/hardening.conf
+    state: absent
+  when: not crowdsec_sandbox_units
+  notify: Reload systemd for crowdsec
+
 - name: Apply pending CrowdSec changes
   ansible.builtin.meta: flush_handlers
 
