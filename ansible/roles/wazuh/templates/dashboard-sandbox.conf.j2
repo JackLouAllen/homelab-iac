@@ -1,0 +1,35 @@
+# Managed by Ansible
+# Node.js compiles code at run time, so MemoryDenyWriteExecute stays off.
+[Service]
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ReadWritePaths=/usr/share/wazuh-dashboard/data
+ProtectHome=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# The bundled node binary carries the file capability cap_net_bind_service (the default port is
+# 443). Executing it fails with EPERM if the bounding set does not allow that capability, even
+# though this service listens on an unprivileged port, so it is the only one left.
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=
+UMask=0027
+# The indexer, the manager API and nginx are all on this host.
+IPAddressDeny=any
+IPAddressAllow=localhost

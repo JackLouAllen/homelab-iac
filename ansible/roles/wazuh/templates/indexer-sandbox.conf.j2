@@ -2,7 +2,7 @@
 [Service]
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths={{ wazuh_data_root }}/indexer /var/log/wazuh-indexer /var/lib/wazuh-indexer /run/wazuh-indexer /etc/wazuh-indexer
+ReadWritePaths={{ wazuh_data_root }}/indexer /var/log/wazuh-indexer /var/lib/wazuh-indexer /run/wazuh-indexer
 ProtectHome=true
 ProtectProc=invisible
 ProtectKernelTunables=true
@@ -22,3 +22,6 @@ SystemCallArchitectures=native
 CapabilityBoundingSet=
 AmbientCapabilities=
 UMask=0027
+# Everything the indexer talks to is on this host.
+IPAddressDeny=any
+IPAddressAllow=localhost

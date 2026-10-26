@@ -114,6 +114,35 @@
     group: wazuh-dashboard
     mode: "0640"
 
+- name: Create the dashboard service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-dashboard.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Sandbox the dashboard service
+  ansible.builtin.template:
+    src: dashboard-sandbox.conf.j2
+    dest: /etc/systemd/system/wazuh-dashboard.service.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: wazuh_sandbox_units
+  notify:
+    - Reload systemd for wazuh
+    - Restart the dashboard
+
+- name: Remove the dashboard sandbox when it is switched off
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-dashboard.service.d/hardening.conf
+    state: absent
+  when: not wazuh_sandbox_units
+  notify:
+    - Reload systemd for wazuh
+    - Restart the dashboard
+
 - name: Apply pending dashboard changes before starting
   ansible.builtin.meta: flush_handlers
 

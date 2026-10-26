@@ -29,3 +29,6 @@ edge_private_sites:
     upstream_scheme: https
     upstream_ca: /etc/wazuh-pki/root-ca.pem
     upstream_name: localhost
+
+# systemd sandboxes for the Wazuh indexer and dashboard (the manager is not sandboxed).
+wazuh_sandbox_units: true
