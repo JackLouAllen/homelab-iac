@@ -1,0 +1,8 @@
+# Managed by Ansible
+source: file
+filenames:
+{% for f in item.filenames %}
+  - {{ f }}
+{% endfor %}
+labels:
+  type: {{ item.type }}

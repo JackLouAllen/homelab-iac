@@ -1,0 +1,20 @@
+# Managed by Ansible. Detection only: the ban decisions are recorded but nothing enforces them.
+name: default_ip_remediation
+filters:
+ - Alert.Remediation == true && Alert.GetScope() == "Ip"
+decisions:
+ - type: ban
+   duration: 4h
+notifications:
+ - file_default
+on_success: break
+---
+name: default_range_remediation
+filters:
+ - Alert.Remediation == true && Alert.GetScope() == "Range"
+decisions:
+ - type: ban
+   duration: 4h
+notifications:
+ - file_default
+on_success: break

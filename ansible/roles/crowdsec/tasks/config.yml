@@ -1,0 +1,98 @@
+---
+# "cscli setup" ran when the package was installed and enabled whatever it found. These files are
+# generated and would acquire the same logs twice, so the declared sources replace them.
+- name: Find the generated acquisition files
+  ansible.builtin.find:
+    paths: /etc/crowdsec/acquis.d
+    patterns: setup.*.yaml
+  register: crowdsec_generated
+
+- name: Remove the generated acquisition files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ crowdsec_generated.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  notify: Restart crowdsec
+
+- name: Declare the log sources
+  ansible.builtin.template:
+    src: acquisition.yaml.j2
+    dest: /etc/crowdsec/acquis.d/{{ item.name }}.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ crowdsec_acquisitions }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart crowdsec
+
+- name: List the installed collections
+  ansible.builtin.command: cscli collections list -o json
+  register: crowdsec_installed
+  changed_when: false
+  check_mode: false
+
+- name: Install the declared collections
+  ansible.builtin.command: cscli collections install {{ item }}
+  loop: "{{ crowdsec_collections }}"
+  when: item not in (crowdsec_installed.stdout | from_json).collections | map(attribute='name') | list
+  changed_when: true
+  notify: Restart crowdsec
+
+- name: Remove the collections that are not wanted
+  ansible.builtin.command: cscli collections remove {{ item }}
+  loop: "{{ crowdsec_collections_absent }}"
+  when: item in (crowdsec_installed.stdout | from_json).collections | map(attribute='name') | list
+  changed_when: true
+  notify: Restart crowdsec
+
+- name: Whitelist the tailnet
+  ansible.builtin.template:
+    src: tailnet-whitelist.yaml.j2
+    dest: /etc/crowdsec/parsers/s02-enrich/tailnet-whitelist.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart crowdsec
+
+- name: Create the alert directory
+  ansible.builtin.file:
+    path: "{{ crowdsec_alert_dir }}"
+    state: directory
+    owner: nobody
+    group: nobody
+    mode: "0750"
+
+- name: Write alerts to a file
+  ansible.builtin.template:
+    src: file.yaml.j2
+    dest: /etc/crowdsec/notifications/file.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart crowdsec
+
+- name: Send alerts to the file
+  ansible.builtin.template:
+    src: profiles.yaml.j2
+    dest: /etc/crowdsec/profiles.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart crowdsec
+
+- name: Apply pending CrowdSec changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Check the configuration is valid
+  ansible.builtin.command: /usr/bin/crowdsec -c /etc/crowdsec/config.yaml -t -error
+  changed_when: false
+  check_mode: false
+
+- name: Make sure CrowdSec is running
+  ansible.builtin.systemd_service:
+    name: crowdsec.service
+    enabled: true
+    state: started

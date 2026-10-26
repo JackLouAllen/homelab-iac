@@ -1,0 +1,44 @@
+---
+# CrowdSec's package repository (packagecloud). packagecloud signs the repository metadata with
+# one key and CrowdSec signs its packages with another ("Crowdsec Rpm Archive", valid until
+# 2027-05-12), so both are pinned by fingerprint. The package signature's issuer was checked
+# against this key before it was added.
+crowdsec_repo_key_url: https://packagecloud.io/crowdsec/crowdsec/gpgkey
+crowdsec_repo_key_fingerprint: 6A89E3C2303A901A889971D3376ED5326E93CD0C  # gitleaks:allow (public key fingerprint)
+crowdsec_package_key_url: https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-FED78314A2468CCF.pub.gpg
+crowdsec_package_key_fingerprint: 9082D8CACBBEB0DAB218BAB04C3D386C3CDF0DB4  # gitleaks:allow (public key fingerprint)
+
+# The el/10 repository exists but is empty (checked 2026-10-26), so RHEL 10 uses the el/9 build. It
+# is a Go program whose package requires only /bin/sh and its own config. Switch to 10 once
+# packagecloud publishes packages there.
+crowdsec_repo_el: 9
+crowdsec_repo_baseurl: https://packagecloud.io/crowdsec/crowdsec/el/{{ crowdsec_repo_el }}/$basearch
+
+# Detection only: decisions are recorded, and alerts are written to a file for Wazuh. A bouncer
+# that enforces them is a separate, later step.
+crowdsec_collections:
+  - crowdsecurity/linux
+  - crowdsecurity/sshd
+  - crowdsecurity/nginx
+  - crowdsecurity/base-http-scenarios
+  - crowdsecurity/http-cve
+  - crowdsecurity/whitelist-good-actors
+  - crowdsecurity/auditd
+# "cscli setup" enabled these from what it found installed. Postfix only listens on loopback here.
+crowdsec_collections_absent:
+  - crowdsecurity/postfix
+
+# The log sources. "type" selects the parser.
+crowdsec_acquisitions:
+  - {name: nginx, filenames: [/var/log/nginx/*.log], type: nginx}
+  - {name: sshd, filenames: [/var/log/secure], type: syslog}
+  - {name: auditd, filenames: ["/var/log/audit/*.log"], type: auditd}
+
+# Never treat these as attackers. The built-in whitelist covers RFC 1918 but not the CGNAT range
+# Tailscale uses, and the nginx log holds this admin's own requests to the private names.
+crowdsec_whitelist_cidrs:
+  - 100.64.0.0/10
+
+# Alerts for Wazuh, one JSON object per line. The notification plugin runs as "nobody".
+crowdsec_alert_dir: /var/log/crowdsec
+crowdsec_alert_file: "{{ crowdsec_alert_dir }}/alerts.json"

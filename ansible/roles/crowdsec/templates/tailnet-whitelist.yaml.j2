@@ -1,0 +1,9 @@
+# Managed by Ansible
+name: homelab/tailnet-whitelist
+description: Tailscale addresses are this lab's own devices
+whitelist:
+  reason: tailnet peers
+  cidr:
+{% for c in crowdsec_whitelist_cidrs %}
+    - "{{ c }}"
+{% endfor %}

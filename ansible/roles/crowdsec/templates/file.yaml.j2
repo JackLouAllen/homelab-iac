@@ -1,0 +1,20 @@
+# Managed by Ansible
+type: file
+
+name: file_default # this must match the name used in profiles.yaml
+log_level: info
+
+# One compact JSON object per alert. The default template dumps every event of the alert, which
+# makes lines far too large for Wazuh to read.
+format: |
+  {{ '{{' }}range . -{{ '}}' }}
+  { "time": "{{ '{{' }}.StopAt{{ '}}' }}", "program": "crowdsec", "scenario": "{{ '{{' }}.Scenario{{ '}}' }}", "source_ip": "{{ '{{' }}.Source.Value{{ '}}' }}", "source_country": "{{ '{{' }}.Source.Cn{{ '}}' }}", "events_count": {{ '{{' }}.EventsCount{{ '}}' }}, "remediation": {{ '{{' }}.Remediation{{ '}}' }} }
+  {{ '{{' }} end -{{ '}}' }}
+
+log_path: "{{ crowdsec_alert_file }}"
+rotate:
+  enabled: true
+  max_size: 20 # in MB
+  max_files: 5
+  max_age: 30
+  compress: true

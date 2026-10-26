@@ -1,0 +1,8 @@
+---
+- name: Repository and package
+  ansible.builtin.import_tasks: packages.yml
+  tags: [crowdsec_packages]
+
+- name: Sources, collections and alerts
+  ansible.builtin.import_tasks: config.yml
+  tags: [crowdsec_config]

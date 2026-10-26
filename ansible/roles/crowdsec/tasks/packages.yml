@@ -1,0 +1,30 @@
+---
+- name: Import the CrowdSec signing keys
+  ansible.builtin.rpm_key:
+    key: "{{ item.url }}"
+    fingerprint: "{{ item.fingerprint }}"
+    state: present
+  loop:
+    - {url: "{{ crowdsec_repo_key_url }}", fingerprint: "{{ crowdsec_repo_key_fingerprint }}"}
+    - {url: "{{ crowdsec_package_key_url }}", fingerprint: "{{ crowdsec_package_key_fingerprint }}"}
+  loop_control:
+    label: "{{ item.url | basename }}"
+
+- name: Add the CrowdSec repository
+  ansible.builtin.yum_repository:
+    name: crowdsec
+    description: CrowdSec
+    baseurl: "{{ crowdsec_repo_baseurl }}"
+    gpgkey:
+      - "{{ crowdsec_repo_key_url }}"
+      - "{{ crowdsec_package_key_url }}"
+    gpgcheck: true
+    repo_gpgcheck: true
+    enabled: true
+
+- name: Install CrowdSec
+  ansible.builtin.dnf:
+    name: crowdsec
+    state: present
+  # In check mode the repository does not exist yet, so the package cannot be resolved.
+  when: not ansible_check_mode

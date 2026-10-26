@@ -1,0 +1,5 @@
+---
+- name: Intrusion detection from web logs
+  hosts: oci
+  roles:
+    - {role: crowdsec, tags: [crowdsec]}
