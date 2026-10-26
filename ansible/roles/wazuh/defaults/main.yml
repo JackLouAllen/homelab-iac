@@ -27,13 +27,20 @@ wazuh_indexer_dn: "CN=wazuh-indexer,OU=Wazuh,O={{ wazuh_pki_org }}"
 # Manager: nothing listens for agents until ovh1 exists. Then set wazuh_remote_ip to the tailnet
 # address, set wazuh_authd_enabled, add 1514/tcp and 1515/tcp to baseline_tailnet_ports and
 # to the Tailscale policy.
-wazuh_remote_ip: 127.0.0.1
+# Agents connect over the tailnet, so the listener binds the tailnet address (as nginx does); on a
+# host without Tailscale it stays on loopback.
+wazuh_remote_ip: "{{ ansible_facts['tailscale0']['ipv4']['address'] | default('127.0.0.1') }}"
 wazuh_authd_enabled: false
 wazuh_api_host: 127.0.0.1
 wazuh_api_port: 55000
 wazuh_api_request_timeout: 60
 # Whodata (who changed it) on the critical paths; the rest stays on the default schedule.
-wazuh_fim_whodata_paths: [/etc, /usr/bin, /usr/sbin, /boot, /root]
+# File integrity monitoring of the critical paths. "realtime" reports changes within seconds without
+# saying who made them. "whodata" adds the user and process from the audit subsystem, but on RHEL 10
+# (audit 4.0.3) with Wazuh 4.14.9 its start-up health check fails on some starts and it silently
+# falls back to realtime, with a flood of unparsable audit records in between, so it is not used.
+wazuh_fim_mode: realtime
+wazuh_fim_paths: [/etc, /usr/bin, /usr/sbin, /boot, /root]
 wazuh_log_retention_days: 90
 wazuh_vulnerability_detection: true
 
@@ -84,3 +91,8 @@ wazuh_dashboard_session_minutes: 15
 # Extra JSON log files the manager reads (one object per line). CrowdSec writes its alerts here.
 wazuh_json_logs:
   - /var/log/crowdsec/alerts.json
+
+# How long the manager waits for the tailnet address at boot. The unit's own start limit is 45 s,
+# so the drop-in raises it.
+wazuh_tailnet_wait_seconds: 40
+wazuh_manager_start_timeout: 120

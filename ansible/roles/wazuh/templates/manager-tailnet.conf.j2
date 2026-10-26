@@ -1,0 +1,11 @@
+# Managed by Ansible
+# The agent listener binds the tailnet address, which does not exist for the first seconds of boot.
+# If the manager started before it, remoted could not bind and the whole manager would fail.
+# This drop-in only adds a wait; it does not replace any of the stock unit's ExecStartPre lines.
+[Unit]
+After=tailscaled.service
+Wants=tailscaled.service
+
+[Service]
+ExecStartPre=/usr/bin/bash -c 'for i in $$(seq 1 {{ wazuh_tailnet_wait_seconds }}); do /usr/sbin/ip -4 addr show dev tailscale0 | grep -q "inet {{ wazuh_remote_ip }}/" && exit 0; sleep 1; done; exit 1'
+TimeoutStartSec={{ wazuh_manager_start_timeout }}

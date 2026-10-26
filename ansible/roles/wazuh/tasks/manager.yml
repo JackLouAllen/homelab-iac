@@ -15,7 +15,7 @@
   ansible.builtin.dnf:
     name: audispd-plugins
     state: present
-  when: wazuh_fim_whodata_paths | length > 0
+  when: wazuh_fim_mode == 'whodata'
 
 - name: Register the Wazuh audit plugin
   ansible.builtin.copy:
@@ -30,8 +30,22 @@
     owner: root
     group: wazuh
     mode: "0644"
-  when: wazuh_fim_whodata_paths | length > 0
+  when: wazuh_fim_mode == 'whodata'
   notify: Reload auditd
+
+# Without whodata nothing uses the audit plugin, so it is removed instead of left half-configured.
+- name: Remove the Wazuh audit plugin registration
+  ansible.builtin.file:
+    path: /etc/audit/plugins.d/af_wazuh.conf
+    state: absent
+  when: wazuh_fim_mode != 'whodata'
+  notify: Restart auditd
+
+- name: Remove the audit dispatcher plugin package
+  ansible.builtin.dnf:
+    name: audispd-plugins
+    state: absent
+  when: wazuh_fim_mode != 'whodata'
 
 - name: Move the scanner's large directories to the data volume
   ansible.builtin.include_tasks:
@@ -65,6 +79,35 @@
     replace: <update_check>no</update_check>
   notify: Restart the manager
 
+- name: Create the manager service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-manager.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Wait for the tailnet address before starting the manager
+  ansible.builtin.template:
+    src: manager-tailnet.conf.j2
+    dest: /etc/systemd/system/wazuh-manager.service.d/tailnet.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: wazuh_remote_ip is not match('^127\\.')
+  notify:
+    - Reload systemd for wazuh
+    - Restart the manager
+
+- name: Remove the tailnet wait when the listener is on loopback
+  ansible.builtin.file:
+    path: /etc/systemd/system/wazuh-manager.service.d/tailnet.conf
+    state: absent
+  when: wazuh_remote_ip is match('^127\\.')
+  notify:
+    - Reload systemd for wazuh
+    - Restart the manager
+
 - name: Bind the agent listener
   ansible.builtin.replace:
     path: /var/ossec/etc/ossec.conf
@@ -79,13 +122,13 @@
     replace: \g<1>{{ 'no' if wazuh_authd_enabled else 'yes' }}\g<2>
   notify: Restart the manager
 
-- name: Watch the critical paths with whodata
+- name: Watch the critical paths
   ansible.builtin.replace:
     path: /var/ossec/etc/ossec.conf
     regexp: >-
       <directories[^>]*>/etc,/usr/bin,/usr/sbin[^<]*</directories>\s*<directories[^>]*>/bin,/sbin[^<]*</directories>
     replace: >-
-      <directories whodata="yes">{{ wazuh_fim_whodata_paths | join(',') }}</directories>\n    <directories>/bin,/sbin</directories>
+      <directories {{ wazuh_fim_mode }}="yes">{{ wazuh_fim_paths | join(',') }}</directories>\n    <directories>/bin,/sbin</directories>
   notify: Restart the manager
 
 - name: Bind the API to loopback
