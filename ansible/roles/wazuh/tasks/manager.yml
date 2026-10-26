@@ -136,6 +136,15 @@
       no_log: true
       notify: Restart the manager
 
+- name: Install the custom rules
+  ansible.builtin.template:
+    src: local_rules.xml.j2
+    dest: /var/ossec/etc/rules/local_rules.xml
+    owner: wazuh
+    group: wazuh
+    mode: "0660"
+  notify: Restart the manager
+
 - name: Test the manager configuration
   ansible.builtin.command: /var/ossec/bin/wazuh-analysisd -t
   changed_when: false

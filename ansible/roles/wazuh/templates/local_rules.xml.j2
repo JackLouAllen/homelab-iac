@@ -1,0 +1,19 @@
+<!-- Managed by Ansible. Custom rules use IDs from 100000 upwards. -->
+<group name="local,restic,backup,">
+
+  <!--
+    systemd logs "Failed with result" for every failed unit, whatever the exit code. Wazuh's own
+    rule 40704 only matches exit status 1 ("status=1/FAILURE"), and restic uses other codes (3
+    unreadable files, 10 missing repository, 11 locked, 12 wrong password), which systemd prints
+    as "status=10/n/a". Rule 40700 is Wazuh's base rule for systemd messages, at level 0.
+  -->
+  <rule id="100100" level="10">
+    <if_sid>40700</if_sid>
+    <regex type="pcre2">restic-(?:backup|maintenance)@\S+\.service: Failed with result</regex>
+    <description>Backup failure: a restic systemd unit failed.</description>
+    <mitre>
+      <id>T1490</id>
+    </mitre>
+  </rule>
+
+</group>
