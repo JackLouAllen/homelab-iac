@@ -1,0 +1,33 @@
+# Managed by Ansible
+# The daemon parses untrusted web and SSH logs. It reads other services' logs (CAP_DAC_READ_SEARCH).
+# It has no way to override file permissions, so its notification plugin runs as the same user
+# (config.yaml.local): connecting to a socket owned by "nobody" was refused. CAP_SETUID and
+# CAP_SETGID stay because the plugin broker still sets credentials when it starts a plugin.
+[Service]
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+# crowdsec.log and its rotated copies live directly in /var/log (log_dir in config.yaml).
+ReadWritePaths=/var/lib/crowdsec /var/log
+ProtectHome=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SETUID CAP_SETGID
+AmbientCapabilities=
+UMask=0027

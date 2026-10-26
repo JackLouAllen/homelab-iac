@@ -57,13 +57,26 @@
     mode: "0644"
   notify: Restart crowdsec
 
+# The sandbox gives the daemon no way to override file permissions, and it has to connect to the
+# plugin's socket, so the plugin runs as the same user as the daemon instead of "nobody". It is
+# held by the same sandbox. The recursion also fixes files an earlier run left owned by nobody.
 - name: Create the alert directory
   ansible.builtin.file:
     path: "{{ crowdsec_alert_dir }}"
     state: directory
-    owner: nobody
-    group: nobody
+    owner: root
+    group: root
     mode: "0750"
+    recurse: true
+
+- name: Run the notification plugin as the daemon's user
+  ansible.builtin.template:
+    src: config.yaml.local.j2
+    dest: /etc/crowdsec/config.yaml.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart crowdsec
 
 - name: Write alerts to a file
   ansible.builtin.template:

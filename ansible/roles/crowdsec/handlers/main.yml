@@ -3,3 +3,7 @@
   ansible.builtin.systemd_service:
     name: crowdsec.service
     state: restarted
+
+- name: Reload systemd for crowdsec
+  ansible.builtin.systemd_service:
+    daemon_reload: true

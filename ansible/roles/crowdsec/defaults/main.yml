@@ -42,3 +42,6 @@ crowdsec_whitelist_cidrs:
 # Alerts for Wazuh, one JSON object per line. The notification plugin runs as "nobody".
 crowdsec_alert_dir: /var/log/crowdsec
 crowdsec_alert_file: "{{ crowdsec_alert_dir }}/alerts.json"
+
+# systemd sandbox for the CrowdSec daemon. Set to false to back out a filter that is too strict.
+crowdsec_sandbox_units: true

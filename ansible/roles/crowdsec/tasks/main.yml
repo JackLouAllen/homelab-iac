@@ -6,3 +6,7 @@
 - name: Sources, collections and alerts
   ansible.builtin.import_tasks: config.yml
   tags: [crowdsec_config]
+
+- name: Sandbox
+  ansible.builtin.import_tasks: sandbox.yml
+  tags: [crowdsec_sandbox]
