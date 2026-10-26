@@ -1,0 +1,23 @@
+---
+- name: Install restic
+  ansible.builtin.import_tasks: install.yml
+  tags: [restic_install]
+
+- name: Configure restic
+  ansible.builtin.import_tasks: config.yml
+  tags: [restic_config]
+  when: restic_repositories | length > 0
+
+- name: Initialise the repositories
+  ansible.builtin.import_tasks: init.yml
+  tags: [restic_init]
+  when: restic_repositories | length > 0
+
+- name: Schedule the backups
+  ansible.builtin.import_tasks: units.yml
+  tags: [restic_units]
+  when: restic_repositories | length > 0
+
+- name: Prove a restore works
+  ansible.builtin.import_tasks: verify.yml
+  tags: [never, restic_verify]

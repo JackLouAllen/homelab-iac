@@ -1,0 +1,11 @@
+# Managed by Ansible
+[Unit]
+Description=Weekly restic retention and integrity check for %i
+
+[Timer]
+OnCalendar={{ restic_maintenance_calendar }}
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

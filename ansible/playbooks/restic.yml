@@ -1,0 +1,5 @@
+---
+- name: Encrypted backups
+  hosts: oci
+  roles:
+    - {role: restic, tags: [restic]}

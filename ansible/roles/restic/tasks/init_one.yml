@@ -1,0 +1,25 @@
+---
+# "cat config" succeeds only on an initialised repository; init runs only when the repository is
+# missing, so a network failure stops the play instead of trying to create a second repository.
+- name: Look for the repository
+  ansible.builtin.command: /usr/local/bin/restic cat config
+  environment: "{{ restic_env }}"
+  register: restic_repo_config
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Stop if the repository could not be read for another reason
+  ansible.builtin.fail:
+    msg: "restic could not read repository {{ restic_repo.name }}: {{ restic_repo_config.stderr | default('') }}"
+  when:
+    - restic_repo_config.rc != 0
+    - restic_repo_config.stderr is not search('unable to open config file|Is there a repository|does not exist')
+
+- name: Create the repository
+  ansible.builtin.command: /usr/local/bin/restic init
+  environment: "{{ restic_env }}"
+  when: restic_repo_config.rc != 0
+  changed_when: true
+  no_log: true

@@ -1,0 +1,7 @@
+---
+- name: Initialise each repository
+  ansible.builtin.include_tasks: init_one.yml
+  loop: "{{ restic_repositories }}"
+  loop_control:
+    loop_var: restic_repo
+    label: "{{ restic_repo.name }}"

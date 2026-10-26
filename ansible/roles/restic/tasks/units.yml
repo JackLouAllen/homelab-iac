@@ -1,0 +1,26 @@
+---
+- name: Install the backup and maintenance units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - restic-backup@.service
+    - restic-backup@.timer
+    - restic-maintenance@.service
+    - restic-maintenance@.timer
+  notify: Reload systemd for restic
+
+- name: Apply the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the timers for each repository
+  ansible.builtin.systemd_service:
+    name: "{{ item.0 }}@{{ item.1.name }}.timer"
+    enabled: true
+    state: started
+  loop: "{{ ['restic-backup', 'restic-maintenance'] | product(restic_repositories) | list }}"
+  loop_control:
+    label: "{{ item.0 }}@{{ item.1.name }}"

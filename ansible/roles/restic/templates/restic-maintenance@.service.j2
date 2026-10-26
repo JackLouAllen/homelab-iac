@@ -1,0 +1,37 @@
+# Managed by Ansible
+[Unit]
+Description=restic retention and integrity check for %i
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ restic_dir }}/%i.env
+ExecStart=/usr/local/bin/restic forget --keep-daily {{ restic_retention.daily }} --keep-weekly {{ restic_retention.weekly }} --keep-monthly {{ restic_retention.monthly }} --prune
+ExecStart=/usr/local/bin/restic check --read-data-subset={{ restic_check_subset }}
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ReadWritePaths={{ restic_cache_dir }}
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+SystemCallArchitectures=native
+# Read access to every file without being able to change one.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=
+UMask=0077

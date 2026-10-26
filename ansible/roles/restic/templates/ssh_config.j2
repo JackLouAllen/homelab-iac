@@ -1,0 +1,12 @@
+# Managed by Ansible. The NAS that holds the restic repository, over Tailscale.
+Host {{ restic_sftp_alias }}
+    HostName {{ restic_sftp_host }}
+    User {{ restic_sftp_user }}
+    Port {{ restic_sftp_port }}
+    IdentityFile {{ restic_dir }}/ssh/id_ed25519
+    IdentitiesOnly yes
+    UserKnownHostsFile {{ restic_dir }}/known_hosts
+    StrictHostKeyChecking yes
+    BatchMode yes
+    ServerAliveInterval 30
+    ServerAliveCountMax 4

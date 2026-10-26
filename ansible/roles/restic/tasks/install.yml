@@ -1,0 +1,89 @@
+---
+- name: Check the architecture is known
+  ansible.builtin.assert:
+    that: ansible_facts.architecture in restic_sha256
+    quiet: true
+
+- name: Install bzip2 to unpack the release
+  ansible.builtin.dnf:
+    name: bzip2
+    state: present
+
+- name: Create the restic directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ restic_cache_dir }}"
+
+- name: Create the versioned binary directory
+  ansible.builtin.file:
+    path: /usr/local/lib/restic
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download restic
+  ansible.builtin.get_url:
+    url: "{{ restic_download_base }}/restic_{{ restic_version }}_linux_{{ restic_arch[ansible_facts.architecture] }}.bz2"
+    dest: "{{ restic_cache_dir }}/restic-{{ restic_version }}.bz2"
+    checksum: "sha256:{{ restic_sha256[ansible_facts.architecture] }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Look at the unpacked binary
+  ansible.builtin.stat:
+    path: /usr/local/lib/restic/restic-{{ restic_version }}
+  register: restic_binary
+
+# A failed unpack must not leave an empty file that later runs mistake for the binary.
+- name: Remove an empty leftover binary
+  ansible.builtin.file:
+    path: /usr/local/lib/restic/restic-{{ restic_version }}
+    state: absent
+  when: restic_binary.stat.exists and restic_binary.stat.size == 0
+
+- name: Unpack restic
+  ansible.builtin.shell:
+    cmd: >-
+      bzip2 -dc {{ restic_cache_dir }}/restic-{{ restic_version }}.bz2
+      > /usr/local/lib/restic/restic-{{ restic_version }}.tmp
+      && mv /usr/local/lib/restic/restic-{{ restic_version }}.tmp /usr/local/lib/restic/restic-{{ restic_version }}
+    creates: /usr/local/lib/restic/restic-{{ restic_version }}
+
+- name: Make the binary executable
+  ansible.builtin.file:
+    path: /usr/local/lib/restic/restic-{{ restic_version }}
+    owner: root
+    group: root
+    mode: "0755"
+
+# systemd moves a service into the normal unconfined service domain only when the executable is
+# bin_t. The default label here is lib_t, which left the unit confined as init_t, and that domain
+# may not run ssh (restic starts ssh for the SFTP repository).
+- name: Read local file context rules
+  ansible.builtin.command: semanage fcontext --list --locallist
+  register: restic_fcontext
+  changed_when: false
+  check_mode: false
+
+- name: Label the restic binaries like other executables
+  ansible.builtin.command: semanage fcontext --add --type bin_t '/usr/local/lib/restic(/.*)?'
+  when: "'/usr/local/lib/restic(/.*)?' not in restic_fcontext.stdout"
+  changed_when: true
+
+- name: Apply the labels
+  ansible.builtin.command: restorecon -R -v /usr/local/lib/restic
+  register: restic_restorecon
+  changed_when: restic_restorecon.stdout | length > 0
+
+- name: Point /usr/local/bin/restic at this version
+  ansible.builtin.file:
+    src: /usr/local/lib/restic/restic-{{ restic_version }}
+    dest: /usr/local/bin/restic
+    state: link

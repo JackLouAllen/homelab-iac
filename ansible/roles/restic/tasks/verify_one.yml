@@ -1,0 +1,64 @@
+---
+# A real round trip: write a file whose content changes every run, back it up, restore it
+# somewhere else and compare checksums. This is the restore test the backup gate asks for.
+- name: Write the canary file
+  ansible.builtin.copy:
+    content: "restic canary {{ ansible_facts.date_time.epoch }}\n"
+    dest: "{{ restic_dir }}/canary"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Back up the canary
+  ansible.builtin.command: /usr/local/bin/restic backup --tag verify {{ restic_dir }}/canary
+  environment: "{{ restic_env }}"
+  changed_when: false
+  no_log: true
+
+- name: Make an empty restore target
+  ansible.builtin.file:
+    path: "{{ restic_cache_dir }}/verify"
+    state: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0700"
+  loop: [absent, directory]
+
+- name: Restore the canary to the side
+  ansible.builtin.command: >-
+    /usr/local/bin/restic restore latest --tag verify
+    --target {{ restic_cache_dir }}/verify --include {{ restic_dir }}/canary
+  environment: "{{ restic_env }}"
+  changed_when: false
+  no_log: true
+
+- name: Checksum the original
+  ansible.builtin.stat:
+    path: "{{ restic_dir }}/canary"
+    checksum_algorithm: sha256
+  register: restic_canary_live
+
+- name: Checksum the restored copy
+  ansible.builtin.stat:
+    path: "{{ restic_cache_dir }}/verify{{ restic_dir }}/canary"
+    checksum_algorithm: sha256
+  register: restic_canary_restored
+
+- name: Check the restore matches
+  ansible.builtin.assert:
+    that:
+      - restic_canary_restored.stat.exists
+      - restic_canary_live.stat.checksum == restic_canary_restored.stat.checksum
+    success_msg: "Restore from {{ restic_repo.name }} matches the original."
+    fail_msg: "The restored canary from {{ restic_repo.name }} does not match."
+
+- name: Remove the restored copy
+  ansible.builtin.file:
+    path: "{{ restic_cache_dir }}/verify"
+    state: absent
+
+- name: Keep only the newest canary snapshot
+  ansible.builtin.command: /usr/local/bin/restic forget --tag verify --keep-last 1 --prune
+  environment: "{{ restic_env }}"
+  changed_when: false
+  no_log: true

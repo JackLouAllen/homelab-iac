@@ -1,0 +1,57 @@
+---
+# restic release, pinned. The SHA-256 values come from the project's SHA256SUMS file, whose
+# signature (key CF8F18F2844575973F79D4E191A6868BD3F7A907, the maintainer's release key) was
+# verified before they were copied here.
+restic_version: "0.19.1"
+restic_sha256:
+  aarch64: a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465
+  x86_64: f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
+restic_download_base: https://github.com/restic/restic/releases/download/v{{ restic_version }}
+restic_arch:
+  aarch64: arm64
+  x86_64: amd64
+
+restic_dir: /etc/restic
+restic_cache_dir: /var/cache/restic
+
+# Repositories to back up to, each {name, url} plus optional env for credentials. Empty until the
+# NAS exists: the role then only installs restic.
+restic_repositories: []
+
+# The NAS is reached over SFTP as an ordinary ssh host defined in /etc/ssh/ssh_config.d.
+restic_sftp_alias: nas-backup
+restic_sftp_host: ""
+restic_sftp_user: ""
+restic_sftp_port: 22
+# known_hosts lines for the NAS, checked against the fingerprint DSM shows. No trust on first use.
+restic_sftp_host_keys: []
+
+# Supplied at run time from a tmpfs copy of inventory/secrets/restic.sops.yml. Losing it makes the
+# backups unreadable, so a copy belongs somewhere that survives the loss of this host.
+restic_repository_password: ""
+
+# Wazuh's indexer data is large and can be rebuilt from the alert logs, so it is left out.
+restic_backup_paths:
+  - /etc
+  - /var/ossec/etc
+  - /var/ossec/api/configuration
+  - /var/ossec/logs/alerts
+  - /srv/containers
+restic_excludes:
+  - /etc/machine-id
+  - /var/ossec/logs/alerts/*.tmp
+
+restic_retention:
+  daily: 7
+  weekly: 4
+  monthly: 12
+restic_backup_calendar: "*-*-* 03:30:00"
+restic_maintenance_calendar: "Sun *-*-* 05:00:00"
+# Share of the repository data read back and checked each week.
+restic_check_subset: 5%
+
+# Environment for one repository; used by the tasks that loop with restic_repo.
+restic_env: >-
+  {{ {'RESTIC_REPOSITORY': restic_repo.url,
+      'RESTIC_PASSWORD_FILE': restic_dir ~ '/password',
+      'RESTIC_CACHE_DIR': restic_cache_dir} | combine(restic_repo.env | default({})) }}

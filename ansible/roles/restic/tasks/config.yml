@@ -1,0 +1,94 @@
+---
+- name: Check the repository password is supplied
+  ansible.builtin.assert:
+    that: restic_repository_password | length >= 24
+    fail_msg: restic_repository_password must be at least 24 characters (inventory/secrets/restic.sops.yml).
+    quiet: true
+  no_log: true
+
+- name: Check the NAS connection is described
+  ansible.builtin.assert:
+    that:
+      - restic_sftp_host | length > 0
+      - restic_sftp_user | length > 0
+      - restic_sftp_host_keys | length > 0
+    fail_msg: Set restic_sftp_host, restic_sftp_user and restic_sftp_host_keys for the sftp repository.
+    quiet: true
+  when: restic_repositories | selectattr('url', 'match', '^sftp:') | list | length > 0
+
+- name: Create the restic configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ restic_dir }}"
+    - "{{ restic_dir }}/ssh"
+
+- name: Store the repository password
+  ansible.builtin.copy:
+    content: "{{ restic_repository_password }}\n"
+    dest: "{{ restic_dir }}/password"
+    owner: root
+    group: root
+    mode: "0400"
+  no_log: true
+
+# The private key never leaves this host. Its public half goes into the NAS user's authorized_keys.
+- name: Generate the ssh key for the NAS
+  community.crypto.openssh_keypair:
+    path: "{{ restic_dir }}/ssh/id_ed25519"
+    type: ed25519
+    comment: restic@{{ inventory_hostname }}
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Read the public key
+  ansible.builtin.slurp:
+    src: "{{ restic_dir }}/ssh/id_ed25519.pub"
+  register: restic_public_key
+
+- name: Show the public key to authorise on the NAS
+  ansible.builtin.debug:
+    msg: "{{ restic_public_key.content | b64decode | trim }}"
+
+- name: Pin the NAS host keys
+  ansible.builtin.copy:
+    content: "{{ restic_sftp_host_keys | join('\n') }}\n"
+    dest: "{{ restic_dir }}/known_hosts"
+    owner: root
+    group: root
+    mode: "0600"
+  when: restic_sftp_host_keys | length > 0
+
+- name: Describe the NAS as an ssh host
+  ansible.builtin.template:
+    src: ssh_config.j2
+    dest: /etc/ssh/ssh_config.d/60-restic.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: restic_sftp_host | length > 0
+
+- name: List what is left out of the backups
+  ansible.builtin.copy:
+    content: "{{ restic_excludes | join('\n') }}\n"
+    dest: "{{ restic_dir }}/excludes"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Write the environment for each repository
+  ansible.builtin.template:
+    src: repository.env.j2
+    dest: "{{ restic_dir }}/{{ item.name }}.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ restic_repositories }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true

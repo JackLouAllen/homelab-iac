@@ -1,0 +1,7 @@
+---
+- name: Back up and restore a canary in each repository
+  ansible.builtin.include_tasks: verify_one.yml
+  loop: "{{ restic_repositories }}"
+  loop_control:
+    loop_var: restic_repo
+    label: "{{ restic_repo.name }}"
