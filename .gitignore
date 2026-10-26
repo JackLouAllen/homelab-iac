@@ -6,6 +6,9 @@
 crash.log
 crash.*.log
 
+# Backend settings name the tenancy's bucket and namespace (example is committed)
+backend.hcl
+
 # Variables (examples are safe to commit)
 *.tfvars
 *.tfvars.json

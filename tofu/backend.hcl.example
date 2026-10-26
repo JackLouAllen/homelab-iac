@@ -1,0 +1,10 @@
+# Copy to backend.hcl (git-ignored) and fill in. Used as:
+#   tofu init -backend-config=../backend.hcl            (new setup)
+#   tofu init -migrate-state -backend-config=../backend.hcl   (moving existing local state)
+bucket = "REPLACE-WITH-THE-STATE-BUCKET-NAME"
+region = "REPLACE-WITH-THE-OCI-REGION"   # for example us-ashburn-1
+
+# https://<object storage namespace>.compat.objectstorage.<region>.oraclecloud.com
+endpoints = {
+  s3 = "https://REPLACE-NAMESPACE.compat.objectstorage.REPLACE-REGION.oraclecloud.com"
+}
