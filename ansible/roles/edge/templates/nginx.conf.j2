@@ -1,4 +1,11 @@
 # Managed by Ansible
+{% macro proxy_public(site) %}
+proxy_pass http://{{ site.upstream }};
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Forwarded-Proto https;
+{% endmacro %}
 user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log;
@@ -22,6 +29,13 @@ http {
     default_type application/octet-stream;
 
     access_log /var/log/nginx/access.log;
+{% for site in edge_public_sites if site.rate_limit is defined %}
+
+    # One bucket per client address (the real address from CF-Connecting-IP), per public site
+    limit_req_zone $binary_remote_addr zone=login_{{ site.host | replace('.', '_') }}:10m rate={{ site.rate_limit.rate }};
+    limit_req_status 429;
+    limit_req_log_level warn;
+{% endfor %}
 
     ssl_ciphers PROFILE=SYSTEM;
     ssl_prefer_server_ciphers off;
@@ -53,13 +67,47 @@ http {
         set_real_ip_from 127.0.0.1;
         real_ip_header CF-Connecting-IP;
 
-{% if site.upstream | length > 0 %}
+{% if site.upstream | length > 0 and site.allow_paths is defined %}
+        # Allow-list: only these paths reach the upstream, everything else is a plain 404.
+        # nginx matches on the decoded, normalized path, so %-encoding and // do not get around it.
         location / {
-            proxy_pass http://{{ site.upstream }};
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $remote_addr;
-            proxy_set_header X-Forwarded-Proto https;
+            return 404;
+        }
+{% for path in site.allow_exact | default([]) %}
+
+        location = {{ path }} {
+            {{ proxy_public(site) | trim | indent(12) }}
+        }
+{% endfor %}
+{% for path in site.allow_paths %}
+
+        location {{ path }} {
+            {{ proxy_public(site) | trim | indent(12) }}
+        }
+{% endfor %}
+{% for path in site.deny_exact | default([]) %}
+
+        location = {{ path }} {
+            return 404;
+        }
+{% endfor %}
+{% for regex in site.deny_regex | default([]) %}
+
+        # Regex locations are checked after the prefix match and win over it
+        location ~* {{ regex }} {
+            return 404;
+        }
+{% endfor %}
+{% if site.rate_limit is defined %}
+
+        location ~ {{ site.rate_limit.regex }} {
+            limit_req zone=login_{{ site.host | replace('.', '_') }} burst={{ site.rate_limit.burst }} nodelay;
+            {{ proxy_public(site) | trim | indent(12) }}
+        }
+{% endif %}
+{% elif site.upstream | length > 0 %}
+        location / {
+            {{ proxy_public(site) | trim | indent(12) }}
         }
 {% else %}
         location / {
