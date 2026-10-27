@@ -19,10 +19,12 @@ edge_public_port: 8008
 #
 # auth: a login needs the realm endpoints and the theme assets. The master realm (the admin
 # account's) is never served on the public name; the admin console is on auth-admin (private).
+edge_keycloak_upstream: ""  # set to 127.0.0.1:<port> in group_vars once the pod runs
 edge_public_sites:
   - {host: git.jacklouallen.info, upstream: "", respond_text: git is not deployed yet, respond_status: 503}
   - host: auth.jacklouallen.info
-    upstream: ""
+    upstream: "{{ edge_keycloak_upstream }}"
+    large_headers: true  # Keycloak's cookies and tokens overflow nginx's 4 KB default
     respond_text: auth is not deployed yet
     respond_status: 503
     allow_exact: [/robots.txt]

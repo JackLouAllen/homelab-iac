@@ -26,9 +26,22 @@ for item in args.set:
     key, value = item.split("=", 1)
     vars_[key] = json.loads(value)
 
-# Resolve the defaults that reference other variables the way Ansible would.
+# Resolve variables that reference other variables the way Ansible does, strings nested in lists
+# and dicts included.
 env = jinja2.Environment(undefined=jinja2.StrictUndefined, trim_blocks=True)
-vars_["edge_cert_name"] = env.from_string(vars_["edge_cert_name"]).render(**vars_)
+
+
+def resolve(value):
+    if isinstance(value, str) and "{{" in value:
+        return env.from_string(value).render(**vars_)
+    if isinstance(value, list):
+        return [resolve(v) for v in value]
+    if isinstance(value, dict):
+        return {k: resolve(v) for k, v in value.items()}
+    return value
+
+
+vars_ = {k: resolve(v) for k, v in vars_.items()}
 env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(args.templates),
     undefined=jinja2.StrictUndefined,
