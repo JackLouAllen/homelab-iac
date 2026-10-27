@@ -1,0 +1,8 @@
+# Managed by Ansible
+[Pod]
+PodName=keycloak
+# Loopback only. Management port 9000 (health) is not published.
+PublishPort=127.0.0.1:{{ keycloak_published_port }}:8080
+
+[Install]
+WantedBy=default.target

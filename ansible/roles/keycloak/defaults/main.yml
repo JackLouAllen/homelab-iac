@@ -1,0 +1,44 @@
+---
+# Keycloak and PostgreSQL as one rootless pod under the "keycloak" account (created by podman_host).
+# Only Keycloak is published, on loopback; nginx proxies it (edge role). The database listens
+# only inside the pod's network namespace.
+keycloak_user: keycloak
+keycloak_uid: 2001
+keycloak_home: /srv/containers/keycloak
+keycloak_xdg_runtime_dir: /run/user/{{ keycloak_uid }}
+# Prefix for commands that run as the service account. runuser (unlike sudo -H) keeps root's
+# HOME, so rootless podman would look for its storage under /root: set HOME here. Tasks also set
+# chdir: / because the account cannot read the connecting user's home.
+keycloak_as_user: >-
+  runuser -u {{ keycloak_user }} -- env HOME={{ keycloak_home }}
+  XDG_RUNTIME_DIR={{ keycloak_xdg_runtime_dir }}
+
+# Both images are pinned by digest (multi-arch index; oci1 is aarch64). Upgrades are a deliberate
+# change of the pin: never "latest", never auto-update.
+keycloak_image: quay.io/keycloak/keycloak@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b  # 26.8.1
+# registry.redhat.io needs a login, so the role never pulls this image. Pull it as the keycloak
+# user once (podman login, podman pull, podman logout) and the units run it from local storage.
+keycloak_db_image: registry.redhat.io/rhel10/postgresql-16@sha256:02b1208904753075c47122a4a4b5b5cde35e1f3e21850542a95031072a71f368
+
+keycloak_db_name: keycloak
+keycloak_db_user: keycloak
+
+# Loopback port nginx will proxy to (8080 is CrowdSec's local API).
+keycloak_published_port: 8180
+
+# Public name for logins, private name for the admin console (Keycloak's hostname-admin).
+keycloak_hostname: https://auth.jacklouallen.info
+keycloak_hostname_admin: https://auth-admin.vaultnet.xyz
+
+# The JVM otherwise sizes its heap from the host's 24 GB, which Wazuh's indexer also needs.
+keycloak_java_heap: "-Xms256m -Xmx1024m"
+
+# Temporary bootstrap admin. Keycloak creates it only while the master realm is empty; replace
+# it with a permanent admin that has a WebAuthn credential, then delete it.
+keycloak_bootstrap_admin_username: tmp-admin
+
+# Supplied at run time from a tmpfs copy of inventory/secrets/keycloak.sops.yml. Keys:
+# keycloak_db_password and keycloak_bootstrap_admin_password (each at least 24 characters).
+# They are stored as Podman secrets on first run only: later changes here do not rotate them.
+keycloak_db_password: ""
+keycloak_bootstrap_admin_password: ""

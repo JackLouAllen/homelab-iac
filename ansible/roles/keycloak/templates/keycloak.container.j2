@@ -1,0 +1,39 @@
+# Managed by Ansible
+[Unit]
+Description=Keycloak
+Requires=keycloak-db.service
+After=keycloak-db.service
+
+[Container]
+ContainerName=keycloak
+Image={{ keycloak_image }}
+Pod=keycloak.pod
+# "start" builds on first boot and again whenever the image or build options change.
+Exec=start
+Environment=KC_DB=postgres
+# The database shares the pod's network namespace, so it is on this pod's loopback.
+Environment=KC_DB_URL=jdbc:postgresql://127.0.0.1:5432/{{ keycloak_db_name }}
+Environment=KC_DB_USERNAME={{ keycloak_db_user }}
+Secret=keycloak-db-password,type=env,target=KC_DB_PASSWORD
+Environment=KC_BOOTSTRAP_ADMIN_USERNAME={{ keycloak_bootstrap_admin_username }}
+Secret=keycloak-bootstrap-admin-password,type=env,target=KC_BOOTSTRAP_ADMIN_PASSWORD
+# TLS ends at nginx. xforwarded takes the client address from the X-Forwarded-For nginx sets
+# (the real address from Cloudflare), which brute-force detection needs.
+Environment=KC_HTTP_ENABLED=true
+Environment=KC_PROXY_HEADERS=xforwarded
+Environment=KC_HOSTNAME={{ keycloak_hostname }}
+Environment=KC_HOSTNAME_ADMIN={{ keycloak_hostname_admin }}
+Environment=KC_HEALTH_ENABLED=true
+Environment=KC_LOG_CONSOLE_OUTPUT=json
+Environment="JAVA_OPTS_KC_HEAP={{ keycloak_java_heap }}"
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+# The database may still be starting: retry instead of staying down.
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

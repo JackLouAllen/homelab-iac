@@ -1,0 +1,29 @@
+# Managed by Ansible
+[Unit]
+Description=Keycloak PostgreSQL
+
+[Container]
+ContainerName=keycloak-db
+Image={{ keycloak_db_image }}
+# Never pull: registry.redhat.io needs a login and no credential is stored on the host.
+Pull=never
+Pod=keycloak.pod
+Environment=POSTGRESQL_USER={{ keycloak_db_user }}
+Environment=POSTGRESQL_DATABASE={{ keycloak_db_name }}
+Secret=keycloak-db-password,type=env,target=POSTGRESQL_PASSWORD
+# :Z labels for SELinux, :U chowns the directory to the user the image runs as (UID 26),
+# which inside this rootless user namespace is a subordinate ID on the host.
+Volume={{ keycloak_home }}/volumes/postgres:/var/lib/pgsql/data:Z,U
+NoNewPrivileges=true
+DropCapability=ALL
+HealthCmd=pg_isready -h 127.0.0.1 -U {{ keycloak_db_user }} -d {{ keycloak_db_name }}
+HealthInterval=30s
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

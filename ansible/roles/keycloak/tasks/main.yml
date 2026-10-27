@@ -1,0 +1,127 @@
+---
+- name: Check the secrets were supplied
+  ansible.builtin.assert:
+    that:
+      - keycloak_db_password | length >= 24
+      - keycloak_bootstrap_admin_password | length >= 24
+    fail_msg: >-
+      Pass keycloak_db_password and keycloak_bootstrap_admin_password (24+ characters) from a
+      tmpfs copy of inventory/secrets/keycloak.sops.yml with -e @file.
+    quiet: true
+  no_log: true
+
+# Facts the rest of the role relies on: the account and its user systemd instance exist.
+- name: Check the service account exists and lingers
+  ansible.builtin.stat:
+    path: /var/lib/systemd/linger/{{ keycloak_user }}
+  register: keycloak_linger
+  failed_when: not keycloak_linger.stat.exists
+
+- name: Create the data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ keycloak_user }}"
+    group: "{{ keycloak_user }}"
+    mode: "0700"
+  loop:
+    - "{{ keycloak_home }}/volumes"
+    - "{{ keycloak_home }}/volumes/postgres"
+
+# The database image comes from a registry that needs a login, so it is pulled by hand once.
+- name: Check the database image is in the keycloak user's storage
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    podman image exists {{ keycloak_db_image }}
+  args:
+    chdir: /
+  register: keycloak_db_image_present
+  changed_when: false
+  failed_when: keycloak_db_image_present.rc not in [0, 1]
+  check_mode: false
+
+- name: Stop if the database image has not been pulled
+  ansible.builtin.fail:
+    msg: >-
+      {{ keycloak_db_image }} is not in the keycloak user's storage. As that user: podman login
+      registry.redhat.io, podman pull the image, podman logout. Then re-run.
+  when: keycloak_db_image_present.rc == 1
+
+# Secrets are created once from stdin. Podman has no update: to rotate, remove the secret and
+# re-run (and change the password inside PostgreSQL too: it only reads it on first start).
+- name: Check which Podman secrets exist
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    podman secret exists {{ item }}
+  args:
+    chdir: /
+  loop:
+    - keycloak-db-password
+    - keycloak-bootstrap-admin-password
+  register: keycloak_secrets_present
+  changed_when: false
+  failed_when: keycloak_secrets_present.rc not in [0, 1]
+  check_mode: false
+
+- name: Create the database password secret
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    podman secret create keycloak-db-password -
+  args:
+    chdir: /
+    stdin: "{{ keycloak_db_password }}"
+    stdin_add_newline: false
+  when: keycloak_secrets_present.results[0].rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Create the bootstrap admin password secret
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    podman secret create keycloak-bootstrap-admin-password -
+  args:
+    chdir: /
+    stdin: "{{ keycloak_bootstrap_admin_password }}"
+    stdin_add_newline: false
+  when: keycloak_secrets_present.results[1].rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Install the Quadlet units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ keycloak_home }}/.config/containers/systemd/{{ item }}"
+    owner: "{{ keycloak_user }}"
+    group: "{{ keycloak_user }}"
+    mode: "0644"
+  loop:
+    - keycloak.pod
+    - keycloak-db.container
+    - keycloak.container
+  notify:
+    - Reload the keycloak user's systemd
+    - Restart the Keycloak pod
+
+- name: Flush handlers before starting the units
+  ansible.builtin.meta: flush_handlers
+
+# Quadlet generates the services; the [Install] sections enable them at generation time.
+- name: Start the database and Keycloak
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    systemctl --user start keycloak-db.service keycloak.service
+  args:
+    chdir: /
+  changed_when: false
+  when: not ansible_check_mode
+
+# First start builds Keycloak and creates the schema: allow several minutes.
+- name: Wait for Keycloak on loopback
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ keycloak_published_port }}/realms/master
+    status_code: 200
+  register: keycloak_up
+  until: keycloak_up.status == 200
+  retries: 40
+  delay: 10
+  when: not ansible_check_mode

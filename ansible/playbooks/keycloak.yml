@@ -1,0 +1,5 @@
+---
+- name: Keycloak
+  hosts: oci
+  roles:
+    - {role: keycloak, tags: [keycloak]}
