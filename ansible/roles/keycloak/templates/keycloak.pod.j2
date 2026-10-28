@@ -3,6 +3,11 @@
 PodName=keycloak
 # Loopback only. Management port 9000 (health) is not published.
 PublishPort=127.0.0.1:{{ keycloak_published_port }}:8080
+# Quadlet creates pods with --exit-policy stop: when every container has exited, Podman stops the pod
+# itself, with status 0. systemd does not restart a clean exit and the containers are bound to the pod,
+# so one database crash left everything down for good. With "continue" the pod stays up and each
+# container's unit restarts its own container (Restart=on-failure).
+PodmanArgs=--exit-policy=continue
 
 [Install]
 WantedBy=default.target
