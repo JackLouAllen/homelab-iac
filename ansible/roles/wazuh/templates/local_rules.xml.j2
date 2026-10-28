@@ -9,8 +9,8 @@
   -->
   <rule id="100100" level="10">
     <if_sid>40700</if_sid>
-    <regex type="pcre2">restic-(?:backup|maintenance)@\S+\.service: Failed with result</regex>
-    <description>Backup failure: a restic systemd unit failed.</description>
+    <regex type="pcre2">(?:restic-(?:backup|maintenance)@\S+|keycloak-dump|keycloak-db|keycloak)\.service: Failed with result</regex>
+    <description>Backup or Keycloak failure: a restic, Keycloak dump, or Keycloak pod systemd unit failed.</description>
     <mitre>
       <id>T1490</id>
     </mitre>
