@@ -28,6 +28,7 @@ edge_keycloak_upstream: 127.0.0.1:8180
 edge_private_sites:
   - {host: edge.vaultnet.xyz, upstream: "", respond_text: edge ok, respond_status: 200}
   - {host: auth-admin.vaultnet.xyz, upstream: 127.0.0.1:8180, large_headers: true}
+  - {host: auth.vaultnet.xyz, upstream: 127.0.0.1:8180, large_headers: true}
   - host: wazuh.vaultnet.xyz
     upstream: 127.0.0.1:5601
     upstream_scheme: https

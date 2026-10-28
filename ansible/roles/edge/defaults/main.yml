@@ -17,9 +17,12 @@ edge_public_port: 8008
 # allowed prefix; deny_exact entries do the same for one exact path. rate_limit applies limit_req (rate, burst) to paths matching regex, per client
 # address. The allow-list only takes effect once upstream is set.
 #
-# auth: a login needs the realm endpoints and the theme assets. The master realm (the admin
-# account's) is never served on the public name; the admin console is on auth-admin (private).
+# auth: the public name serves only the realms listed in edge_keycloak_public_realms (and the theme
+# assets). Master and homelab are never served there: the admin console and the master realm are on
+# auth-admin, the homelab realm on auth.vaultnet.xyz (both private).
 edge_keycloak_upstream: ""  # set to 127.0.0.1:<port> in group_vars once the pod runs
+# Realms Keycloak may serve on the public name (for services with outside users). Empty: none.
+edge_keycloak_public_realms: []
 edge_public_sites:
   - {host: git.jacklouallen.info, upstream: "", respond_text: git is not deployed yet, respond_status: 503}
   - host: auth.jacklouallen.info
@@ -28,19 +31,23 @@ edge_public_sites:
     respond_text: auth is not deployed yet
     respond_status: 503
     allow_exact: [/robots.txt]
-    allow_paths: [/realms/, /resources/]
+    allow_paths: [/resources/]
+    # Only these realms are served on the public name. The master and homelab realms are not: they
+    # live on private names (auth-admin and auth.vaultnet.xyz).
+    allow_realms: "{{ edge_keycloak_public_realms }}"
     deny_regex: ['^/realms/master(/|$)']
     # The bare prefixes would otherwise get nginx's redirect to the slash form
     deny_exact: [/realms, /resources]
     rate_limit:
       rate: 30r/m
       burst: 15
-      regex: '^/realms/[^/]+/(protocol/openid-connect/(token|auth)|login-actions/)'
+      suffix: '(protocol/openid-connect/(token|auth)|login-actions/)'
 
 # Private names are served on the tailnet only, over the wildcard certificate.
 edge_private_sites:
   - {host: edge.vaultnet.xyz, upstream: "", respond_text: edge ok, respond_status: 200}
   - {host: auth-admin.vaultnet.xyz, upstream: "", respond_text: auth admin is not deployed yet, respond_status: 503}
+  - {host: auth.vaultnet.xyz, upstream: "", respond_text: auth is not deployed yet, respond_status: 503}
 
 # Systemd sandboxing for nginx and cloudflared. Set to false to back out a filter that is too
 # strict for the host, then re-run the role.

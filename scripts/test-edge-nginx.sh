@@ -18,8 +18,9 @@ python3 -I - "$repo" "$work" <<'PY'
 import json, subprocess, sys, yaml
 repo, work = sys.argv[1:3]
 defaults = yaml.safe_load(open(f"{repo}/ansible/roles/edge/defaults/main.yml"))
-sites = [dict(s, upstream="127.0.0.1:9000") for s in defaults["edge_public_sites"] if s["host"].startswith("auth.")]
-priv = [dict(s, upstream="127.0.0.1:9000") for s in defaults["edge_private_sites"] if s["host"].startswith("auth-admin.")]
+# One public realm ("public") is listed so its paths can be tested; homelab and master must stay refused
+sites = [dict(s, upstream="127.0.0.1:9000", allow_realms=["public"]) for s in defaults["edge_public_sites"] if s["host"].startswith("auth.")]
+priv = [dict(s, upstream="127.0.0.1:9000") for s in defaults["edge_private_sites"] if s["host"].startswith("auth")]
 out = subprocess.run(
     ["python3", "-I", f"{repo}/scripts/render-edge-nginx.py",
      "--set", 'edge_tailnet_ip="127.0.0.2"',

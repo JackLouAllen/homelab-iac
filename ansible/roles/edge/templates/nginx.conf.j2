@@ -90,6 +90,12 @@ http {
             {{ proxy_public(site) | trim | indent(12) }}
         }
 {% endfor %}
+{% for realm in site.allow_realms | default([]) %}
+
+        location /realms/{{ realm }}/ {
+            {{ proxy_public(site) | trim | indent(12) }}
+        }
+{% endfor %}
 {% for path in site.deny_exact | default([]) %}
 
         location = {{ path }} {
@@ -103,9 +109,10 @@ http {
             return 404;
         }
 {% endfor %}
-{% if site.rate_limit is defined %}
+{% if site.rate_limit is defined and site.allow_realms | default([]) | length > 0 %}
 
-        location ~ {{ site.rate_limit.regex }} {
+        # Only the listed realms: a pattern over every realm would proxy the private ones as well
+        location ~ ^/realms/(?:{{ site.allow_realms | join('|') }})/{{ site.rate_limit.suffix }} {
             limit_req zone=login_{{ site.host | replace('.', '_') }} burst={{ site.rate_limit.burst }} nodelay;
             {{ proxy_public(site) | trim | indent(12) }}
         }

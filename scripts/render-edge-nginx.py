@@ -5,6 +5,7 @@ Usage: render-edge-nginx.py [--templates DIR] [--set key=json ...] > nginx.conf
 Used to diff the live config before and after a template change and to feed the container test.
 """
 import argparse
+import ast
 import json
 import pathlib
 
@@ -33,7 +34,10 @@ env = jinja2.Environment(undefined=jinja2.StrictUndefined, trim_blocks=True)
 
 def resolve(value):
     if isinstance(value, str) and "{{" in value:
-        return env.from_string(value).render(**vars_)
+        out = env.from_string(value).render(**vars_)
+        if out[:1] in "[{":  # Ansible turns a rendered list or dict back into one
+            return ast.literal_eval(out)
+        return out
     if isinstance(value, list):
         return [resolve(v) for v in value]
     if isinstance(value, dict):
