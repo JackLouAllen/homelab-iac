@@ -3,10 +3,9 @@
   ansible.builtin.assert:
     that:
       - keycloak_db_password | length >= 24
-      - keycloak_bootstrap_admin_password | length >= 24
     fail_msg: >-
-      Pass keycloak_db_password and keycloak_bootstrap_admin_password (24+ characters) from a
-      tmpfs copy of inventory/secrets/keycloak.sops.yml with -e @file.
+      Pass keycloak_db_password (24+ characters) from a tmpfs copy of
+      inventory/secrets/keycloak.sops.yml with -e @file.
     quiet: true
   no_log: true
 
@@ -47,21 +46,18 @@
       registry.redhat.io, podman pull the image, podman logout. Then re-run.
   when: keycloak_db_image_present.rc == 1
 
-# Secrets are created once from stdin. Podman has no update: to rotate, remove the secret
+# The secret is created once from stdin. Podman has no update: to rotate, remove the secret
 # (podman secret rm), re-run, and the pod restart picks it up. The Red Hat PostgreSQL image applies
 # POSTGRESQL_PASSWORD with ALTER ROLE on every start (set_passwords.sh), so the database follows.
-- name: Check which Podman secrets exist
+- name: Check whether the database password secret exists
   ansible.builtin.command: >-
     {{ keycloak_as_user }}
-    podman secret exists {{ item }}
+    podman secret exists keycloak-db-password
   args:
     chdir: /
-  loop:
-    - keycloak-db-password
-    - keycloak-bootstrap-admin-password
-  register: keycloak_secrets_present
+  register: keycloak_secret_present
   changed_when: false
-  failed_when: keycloak_secrets_present.rc not in [0, 1]
+  failed_when: keycloak_secret_present.rc not in [0, 1]
   check_mode: false
 
 - name: Create the database password secret
@@ -72,19 +68,7 @@
     chdir: /
     stdin: "{{ keycloak_db_password }}"
     stdin_add_newline: false
-  when: keycloak_secrets_present.results[0].rc != 0
-  changed_when: true
-  no_log: true
-
-- name: Create the bootstrap admin password secret
-  ansible.builtin.command: >-
-    {{ keycloak_as_user }}
-    podman secret create keycloak-bootstrap-admin-password -
-  args:
-    chdir: /
-    stdin: "{{ keycloak_bootstrap_admin_password }}"
-    stdin_add_newline: false
-  when: keycloak_secrets_present.results[1].rc != 0
+  when: keycloak_secret_present.rc != 0
   changed_when: true
   no_log: true
 
@@ -105,6 +89,28 @@
 
 - name: Flush handlers before starting the units
   ansible.builtin.meta: flush_handlers
+
+# The bootstrap admin only exists to create the first real admin. Once the unit stops referencing
+# its password, the secret is dead weight: remove it (nothing to do on a fresh host).
+- name: Check for the retired bootstrap admin secret
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    podman secret exists keycloak-bootstrap-admin-password
+  args:
+    chdir: /
+  register: keycloak_old_secret
+  changed_when: false
+  failed_when: keycloak_old_secret.rc not in [0, 1]
+  check_mode: false
+
+- name: Remove the retired bootstrap admin secret
+  ansible.builtin.command: >-
+    {{ keycloak_as_user }}
+    podman secret rm keycloak-bootstrap-admin-password
+  args:
+    chdir: /
+  when: keycloak_old_secret.rc == 0
+  changed_when: true
 
 # Quadlet generates the services; the [Install] sections enable them at generation time.
 - name: Start the database and Keycloak

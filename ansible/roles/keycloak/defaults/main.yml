@@ -33,16 +33,16 @@ keycloak_hostname_admin: https://auth-admin.vaultnet.xyz
 # The JVM otherwise sizes its heap from the host's 24 GB, which Wazuh's indexer also needs.
 keycloak_java_heap: "-Xms256m -Xmx1024m"
 
-# Temporary bootstrap admin. Keycloak creates it only while the master realm is empty; replace
-# it with a permanent admin that has a WebAuthn credential, then delete it.
-keycloak_bootstrap_admin_username: tmp-admin
+# There is no bootstrap admin any more (removed once the permanent admin with passkeys existed).
+# A database rebuilt from nothing has no admin: restore the newest dump (keycloak-restore-test shows
+# how a dump is loaded) instead of starting empty, or temporarily add KC_BOOTSTRAP_ADMIN_USERNAME and
+# KC_BOOTSTRAP_ADMIN_PASSWORD to the Keycloak unit and remove them again afterwards.
 
 # Supplied at run time from a tmpfs copy of inventory/secrets/keycloak.sops.yml. Keys:
-# keycloak_db_password and keycloak_bootstrap_admin_password (each at least 24 characters).
+# keycloak_db_password (at least 24 characters).
 # They are stored as Podman secrets on first run only: later changes here do not rotate them
 # (see the rotation note in tasks/main.yml).
 keycloak_db_password: ""
-keycloak_bootstrap_admin_password: ""
 
 # Database dumps. restic copies the dumps directory, never the live data directory (that would
 # be an inconsistent copy). The dump runs 20 minutes before restic's backup (03:30 plus up to
