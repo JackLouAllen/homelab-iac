@@ -28,11 +28,13 @@
 - name: Apply the configuration now
   ansible.builtin.meta: flush_handlers
 
+# In check mode the package is not installed, so the service does not exist yet.
 - name: Enable GitLab at boot
   ansible.builtin.systemd_service:
     name: gitlab-runsvdir.service
     enabled: true
     state: started
+  when: not ansible_check_mode
 
 # The first start creates the database and takes several minutes.
 - name: Wait for GitLab to answer on loopback

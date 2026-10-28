@@ -11,26 +11,35 @@
   failed_when: false
   check_mode: false
 
-- name: Look for files that would be hidden by a mount
-  ansible.builtin.find:
-    paths: "{{ item.item.src }}"
-    file_type: any
+- name: Look at each directory that is not a mount yet
+  ansible.builtin.stat:
+    path: "{{ item.item.src }}"
   loop: "{{ gitlab_mountpoints.results }}"
   loop_control:
     label: "{{ item.item.src }}"
-  register: gitlab_existing
+  register: gitlab_dirs
   when: item.rc != 0
+
+- name: Look for files that would be hidden by a mount
+  ansible.builtin.find:
+    paths: "{{ item.item.item.src }}"
+    file_type: any
+  loop: "{{ gitlab_dirs.results }}"
+  loop_control:
+    label: "{{ item.item.item.src | default('') }}"
+  register: gitlab_existing
+  when: item is not skipped and item.stat.exists
 
 - name: Stop if GitLab is already installed outside the data volume
   ansible.builtin.assert:
     that: item.matched | default(0) == 0
     fail_msg: >-
-      {{ item.item.item.src }} already holds files and is not on the data volume. Move it by hand
-      (stop GitLab, copy to {{ item.item.item.dest }}, then re-run) rather than mounting over it.
+      {{ item.item.item.item.src }} already holds files and is not on the data volume. Move it by hand
+      (stop GitLab, copy to {{ item.item.item.item.dest }}, then re-run) rather than mounting over it.
     quiet: true
   loop: "{{ gitlab_existing.results }}"
   loop_control:
-    label: "{{ item.item.item.src | default('') }}"
+    label: "{{ item.item.item.item.src | default('') }}"
   when: item is not skipped
 
 - name: Create the locations on the data volume
