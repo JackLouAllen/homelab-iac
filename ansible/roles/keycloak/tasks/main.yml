@@ -16,16 +16,32 @@
   register: keycloak_linger
   failed_when: not keycloak_linger.stat.exists
 
-- name: Create the data directories
+- name: Create the volumes directory
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ keycloak_home }}/volumes"
     state: directory
     owner: "{{ keycloak_user }}"
     group: "{{ keycloak_user }}"
     mode: "0700"
-  loop:
-    - "{{ keycloak_home }}/volumes"
-    - "{{ keycloak_home }}/volumes/postgres"
+
+# The database unit mounts this with :U, which makes Podman give the directory to the user
+# PostgreSQL runs as in the container (UID 26, a subordinate ID on the host). Setting owner or mode
+# here on every run would hand it back to the keycloak user and the running database would lose
+# access at its next checkpoint (a PANIC "Permission denied" on pg_control). So it is only created,
+# never adjusted.
+- name: Check whether the database directory exists
+  ansible.builtin.stat:
+    path: "{{ keycloak_home }}/volumes/postgres"
+  register: keycloak_pgdata
+
+- name: Create the database directory
+  ansible.builtin.file:
+    path: "{{ keycloak_home }}/volumes/postgres"
+    state: directory
+    owner: "{{ keycloak_user }}"
+    group: "{{ keycloak_user }}"
+    mode: "0700"
+  when: not keycloak_pgdata.stat.exists
 
 # The database image comes from a registry that needs a login, so it is pulled by hand once.
 - name: Check the database image is in the keycloak user's storage
