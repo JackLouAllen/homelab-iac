@@ -13,7 +13,8 @@ resource "keycloak_realm" "homelab" {
   registration_allowed     = false
   reset_password_allowed   = false
   verify_email             = false
-  login_with_email_allowed = true
+  # Sign in by username only: the email is an alias for receiving mail, not a second login name.
+  login_with_email_allowed = false
   duplicate_emails_allowed = false
   remember_me              = false
 
