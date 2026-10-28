@@ -1,0 +1,34 @@
+# Managed by Ansible. Sized for one user on a shared host: see docs/GITLAB_DESIGN.md.
+external_url '{{ gitlab_external_url }}'
+
+# TLS ends at the edge nginx, which proxies to workhorse on loopback.
+nginx['enable'] = false
+letsencrypt['enable'] = false
+gitlab_workhorse['listen_network'] = 'tcp'
+gitlab_workhorse['listen_addr'] = '{{ gitlab_workhorse_listen }}'
+# The edge nginx sets X-Forwarded-For (the real address, from Cloudflare on the public door).
+gitlab_rails['trusted_proxies'] = ['127.0.0.1']
+
+# Only used when the database is first created; changing it later does nothing.
+gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']
+
+# No mail server yet.
+gitlab_rails['gitlab_email_enabled'] = false
+gitlab_rails['time_zone'] = 'UTC'
+
+# What this instance does not use.
+prometheus_monitoring['enable'] = false
+gitlab_kas['enable'] = false
+registry['enable'] = false
+gitlab_pages['enable'] = false
+mattermost['enable'] = false
+
+# Memory: Puma single mode (workers 0) and few threads, a small Sidekiq pool, a small shared buffer.
+puma['worker_processes'] = {{ gitlab_puma_workers }}
+puma['max_threads'] = {{ gitlab_puma_max_threads }}
+sidekiq['concurrency'] = {{ gitlab_sidekiq_concurrency }}
+postgresql['shared_buffers'] = '{{ gitlab_postgres_shared_buffers }}'
+
+# Backups are written here, then restic copies them off the host.
+gitlab_rails['backup_path'] = '{{ gitlab_backup_dir }}'
+gitlab_rails['backup_keep_time'] = {{ gitlab_backup_keep_seconds }}

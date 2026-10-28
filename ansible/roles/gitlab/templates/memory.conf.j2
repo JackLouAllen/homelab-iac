@@ -1,0 +1,5 @@
+# Managed by Ansible
+# One cgroup holds every GitLab service (they run under runit). Throttle first, then kill.
+[Service]
+MemoryHigh={{ gitlab_memory_high }}
+MemoryMax={{ gitlab_memory_max }}

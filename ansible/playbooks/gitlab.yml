@@ -1,0 +1,5 @@
+---
+- name: GitLab
+  hosts: oci
+  roles:
+    - {role: gitlab, tags: [gitlab]}

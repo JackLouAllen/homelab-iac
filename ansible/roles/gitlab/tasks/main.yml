@@ -1,0 +1,21 @@
+---
+- name: Check the secrets were supplied
+  ansible.builtin.assert:
+    that: gitlab_root_password | length >= 20
+    fail_msg: >-
+      Pass gitlab_root_password (20+ random characters, not words: GitLab rejects those) from a tmpfs
+      copy of inventory/secrets/gitlab.sops.yml with -e @file.
+    quiet: true
+  no_log: true
+
+- name: Directories on the data volume
+  ansible.builtin.import_tasks: mounts.yml
+  tags: [gitlab_mounts]
+
+- name: Repository and package
+  ansible.builtin.import_tasks: packages.yml
+  tags: [gitlab_packages]
+
+- name: Configuration, memory limit and start
+  ansible.builtin.import_tasks: config.yml
+  tags: [gitlab_config]

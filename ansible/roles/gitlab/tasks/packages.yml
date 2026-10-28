@@ -1,0 +1,60 @@
+---
+- name: Import the GitLab signing keys
+  ansible.builtin.rpm_key:
+    key: "{{ item.url }}"
+    fingerprint: "{{ item.fingerprint }}"
+    state: present
+  loop:
+    - {url: "{{ gitlab_repo_key_url }}", fingerprint: "{{ gitlab_repo_key_fingerprint }}"}
+    - {url: "{{ gitlab_package_key_url }}", fingerprint: "{{ gitlab_package_key_fingerprint }}"}
+  loop_control:
+    label: "{{ item.fingerprint }}"
+
+# repo_gpgcheck verifies the metadata with the repository key as well as the packages.
+- name: Add the GitLab repository
+  ansible.builtin.yum_repository:
+    name: gitlab_gitlab-ce
+    description: GitLab CE
+    baseurl: "{{ gitlab_repo_url }}"
+    gpgkey:
+      - "{{ gitlab_repo_key_url }}"
+      - "{{ gitlab_package_key_url }}"
+    gpgcheck: true
+    repo_gpgcheck: true
+    enabled: true
+  register: gitlab_repo
+
+- name: Install the versionlock plugin
+  ansible.builtin.dnf:
+    name: python3-dnf-plugin-versionlock
+    state: present
+
+# The hold below pins the installed version, so a new gitlab_version would be refused. Release it first
+# (nothing happens on a fresh host or when the version is unchanged).
+- name: Read the installed GitLab version
+  ansible.builtin.command: rpm -q --qf '%{VERSION}-%{RELEASE}' gitlab-ce  # noqa: command-instead-of-module
+  register: gitlab_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Release the version hold before changing version
+  ansible.builtin.command: dnf versionlock delete gitlab-ce
+  when: gitlab_installed.rc == 0 and gitlab_installed.stdout != gitlab_version
+  changed_when: true
+
+# A dry run does not create the repository, so dnf would report the package as missing.
+- name: Install GitLab at one pinned version
+  ansible.builtin.dnf:
+    name: gitlab-ce-{{ gitlab_version }}
+    state: present
+  when: not (ansible_check_mode and gitlab_repo is changed)
+  # Not reconfigured here: there is no EXTERNAL_URL in this environment and the configuration is ours.
+
+# The GitLab repository is not covered by dnf-automatic, and an unplanned jump over a required
+# upgrade stop can break the database.
+- name: Hold GitLab at that version
+  community.general.dnf_versionlock:
+    name: gitlab-ce
+    state: present
+  when: not (ansible_check_mode and gitlab_repo is changed)

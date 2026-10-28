@@ -1,0 +1,67 @@
+---
+# Done before the package is installed, so its files land on the data volume from the start. Moving
+# an installed GitLab is a different and riskier job: stop if there is anything to move.
+- name: Look at each mount point
+  ansible.builtin.command: mountpoint -q {{ item.src }}
+  loop: "{{ gitlab_bind_dirs }}"
+  loop_control:
+    label: "{{ item.src }}"
+  register: gitlab_mountpoints
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Look for files that would be hidden by a mount
+  ansible.builtin.find:
+    paths: "{{ item.item.src }}"
+    file_type: any
+  loop: "{{ gitlab_mountpoints.results }}"
+  loop_control:
+    label: "{{ item.item.src }}"
+  register: gitlab_existing
+  when: item.rc != 0
+
+- name: Stop if GitLab is already installed outside the data volume
+  ansible.builtin.assert:
+    that: item.matched | default(0) == 0
+    fail_msg: >-
+      {{ item.item.item.src }} already holds files and is not on the data volume. Move it by hand
+      (stop GitLab, copy to {{ item.item.item.dest }}, then re-run) rather than mounting over it.
+    quiet: true
+  loop: "{{ gitlab_existing.results }}"
+  loop_control:
+    label: "{{ item.item.item.src | default('') }}"
+  when: item is not skipped
+
+- name: Create the locations on the data volume
+  ansible.builtin.file:
+    path: "{{ item.dest }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ gitlab_bind_dirs }}"
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Create the mount points
+  ansible.builtin.file:
+    path: "{{ item.src }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ gitlab_bind_dirs }}"
+  loop_control:
+    label: "{{ item.src }}"
+
+- name: Mount the data volume locations
+  ansible.posix.mount:
+    path: "{{ item.src }}"
+    src: "{{ item.dest }}"
+    fstype: none
+    opts: bind
+    state: mounted
+  loop: "{{ gitlab_bind_dirs }}"
+  loop_control:
+    label: "{{ item.src }}"

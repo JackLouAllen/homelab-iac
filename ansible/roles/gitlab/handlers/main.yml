@@ -1,0 +1,13 @@
+---
+- name: Reload systemd for gitlab
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+# umask 022: the reconfigure writes configuration files that other users read, and the CIS profile
+# sets 027. The root password is only read when the database does not exist yet.
+- name: Reconfigure GitLab
+  ansible.builtin.shell: umask 022 && gitlab-ctl reconfigure  # noqa: command-instead-of-shell
+  environment:
+    GITLAB_ROOT_PASSWORD: "{{ gitlab_root_password }}"
+  changed_when: true
+  no_log: true

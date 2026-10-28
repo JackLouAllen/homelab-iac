@@ -1,0 +1,55 @@
+---
+# GitLab CE from GitLab's own RPM repository (EL10, aarch64 and x86_64). The program files, the data
+# and the logs live on the data volume: / has about 5 GB free, GitLab wants far more.
+#
+# The edge nginx terminates TLS and proxies to GitLab's workhorse on loopback; the bundled nginx and
+# monitoring stack are off. Roll-out is staged: first the private door only (edge_private_sites),
+# then the read-only public door.
+
+# One pinned version; a plain dnf update must not move it. GitLab upgrades have required stops: read
+# the upgrade path first, take a backup, then change this and re-run.
+gitlab_version: 19.5.1-ce.0.el10
+
+# GitLab builds every absolute link (clone URLs, sign-in redirects, the OIDC callback, the URLs it
+# gives CI jobs) from this one address, so it is the public name; tailnet devices reach the same name
+# through the private nginx listener.
+gitlab_external_url: https://git.jacklouallen.info
+
+# Loopback address of GitLab's web server (workhorse), which nginx proxies to.
+gitlab_workhorse_listen: 127.0.0.1:8181
+
+gitlab_data_root: /srv/gitlab
+gitlab_backup_dir: "{{ gitlab_data_root }}/backups"
+gitlab_backup_keep_seconds: 604800  # one week; restic keeps the long history
+
+# Directories bind-mounted from the data volume before anything is installed.
+gitlab_bind_dirs:
+  - {src: /opt/gitlab, dest: "{{ gitlab_data_root }}/opt"}
+  - {src: /var/opt/gitlab, dest: "{{ gitlab_data_root }}/data"}
+  - {src: /var/log/gitlab, dest: "{{ gitlab_data_root }}/log"}
+
+# Sizing for one user on a host that also runs Wazuh's indexer and Keycloak (see docs/GITLAB_DESIGN.md).
+gitlab_puma_workers: 0  # 0: one process in single mode, the documented low-memory setting
+gitlab_puma_max_threads: 4
+gitlab_sidekiq_concurrency: 5
+gitlab_postgres_shared_buffers: 256MB
+
+# Hard limits on everything under gitlab-runsvdir.service, so a runaway cannot push the Wazuh
+# indexer into the OOM killer. MemoryHigh throttles first; MemoryMax kills.
+gitlab_memory_high: 5G
+gitlab_memory_max: 6G
+
+# Signing keys, pinned by fingerprint: the repository key signs the metadata, the package key signs the
+# RPMs (the older "GitLab, Inc." key expired in 2025 and only matters for old versions).
+gitlab_repo_key_url: https://packages.gitlab.com/gpgkey/gpg.key
+gitlab_repo_key_fingerprint: F6403F6544A38863DAA0B6E03F01618A51312F3F  # gitleaks:allow (public signing-key fingerprint)
+gitlab_package_key_url: https://packages.gitlab.com/gpgkey/gitlab/CB947AD886C8E8FD.pub.gpg
+gitlab_package_key_fingerprint: 98BFDB87FCF10076416C1E0BAD997ACC82DD593D  # gitleaks:allow (public signing-key fingerprint)
+gitlab_repo_url: https://packages.gitlab.com/gitlab/gitlab-ce/el/10/$basearch
+
+# Supplied at run time from a tmpfs copy of inventory/secrets/gitlab.sops.yml. Used only when GitLab
+# first creates the database (the initial root password); changing it later does nothing.
+# GitLab refuses a password made of common words or patterns ("Password must not contain commonly used
+# combinations of words and letters") and then fails the whole first reconfigure at the seeding step:
+# use a random string, for example `openssl rand -base64 24`.
+gitlab_root_password: ""

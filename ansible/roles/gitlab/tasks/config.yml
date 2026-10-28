@@ -1,0 +1,46 @@
+---
+- name: Write the GitLab configuration
+  ansible.builtin.template:
+    src: gitlab.rb.j2
+    dest: /etc/gitlab/gitlab.rb
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Reconfigure GitLab
+
+- name: Create the memory limit drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/gitlab-runsvdir.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Limit GitLab's memory
+  ansible.builtin.template:
+    src: memory.conf.j2
+    dest: /etc/systemd/system/gitlab-runsvdir.service.d/memory.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd for gitlab
+
+- name: Apply the configuration now
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable GitLab at boot
+  ansible.builtin.systemd_service:
+    name: gitlab-runsvdir.service
+    enabled: true
+    state: started
+
+# The first start creates the database and takes several minutes.
+- name: Wait for GitLab to answer on loopback
+  ansible.builtin.uri:
+    url: http://{{ gitlab_workhorse_listen }}/-/readiness
+    status_code: 200
+  register: gitlab_ready
+  until: gitlab_ready.status == 200
+  retries: 60
+  delay: 10
+  when: not ansible_check_mode
