@@ -10,9 +10,9 @@ resource "keycloak_realm" "homelab" {
   default_signature_algorithm = "RS256"
 
   # No mail server yet: self-service registration and password reset would send nothing.
-  registration_allowed     = false
-  reset_password_allowed   = false
-  verify_email             = false
+  registration_allowed   = false
+  reset_password_allowed = false
+  verify_email           = false
   # Sign in by username only: the email is an alias for receiving mail, not a second login name.
   login_with_email_allowed = false
   duplicate_emails_allowed = false
