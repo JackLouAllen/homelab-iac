@@ -53,6 +53,9 @@ edge_private_sites:
 # strict for the host, then re-run the role.
 edge_sandbox_units: true
 
+# Extra certificate lineages for names the wildcard does not cover: {name, domains: [...]}.
+edge_extra_certs: []
+
 # Let's Encrypt staging until the private path works, then set this to false.
 edge_acme_staging: true
 edge_acme_email: ""

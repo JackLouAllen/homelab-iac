@@ -20,6 +20,10 @@ podman_host_service_users:
 
 edge_acme_staging: false
 
+# git.jacklouallen.info is a public name that the tailnet also reaches on the private listener.
+edge_extra_certs:
+  - {name: git.jacklouallen.info, domains: [git.jacklouallen.info]}
+
 # Keycloak's published loopback port (keycloak_published_port in the keycloak role).
 edge_keycloak_upstream: 127.0.0.1:8180
 
@@ -29,6 +33,16 @@ edge_private_sites:
   - {host: edge.vaultnet.xyz, upstream: "", respond_text: edge ok, respond_status: 200}
   - {host: auth-admin.vaultnet.xyz, upstream: 127.0.0.1:8180, large_headers: true}
   - {host: auth.vaultnet.xyz, upstream: 127.0.0.1:8180, large_headers: true}
+  # GitLab's private door: the same name as the public one, reached over the tailnet (see
+  # docs/GITLAB_DESIGN.md). Pushes need large bodies and long timeouts.
+  - host: git.jacklouallen.info
+    upstream: 127.0.0.1:8181
+    cert_name: git.jacklouallen.info
+    large_headers: true
+    max_body_size: 1g
+    proxy_timeout: 300s
+    no_request_buffering: true
+    websockets: true
   - host: wazuh.vaultnet.xyz
     upstream: 127.0.0.1:5601
     upstream_scheme: https

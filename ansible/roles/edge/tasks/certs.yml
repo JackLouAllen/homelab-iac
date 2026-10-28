@@ -38,6 +38,31 @@
   when: not edge_certificate.stat.exists
   changed_when: true
 
+# Names the wildcard does not cover (a public name that is also served on the tailnet). Production
+# only; the Cloudflare token must be able to edit the name's zone.
+- name: Check for the extra certificates
+  ansible.builtin.stat:
+    path: /etc/letsencrypt/live/{{ item.name }}/fullchain.pem
+  loop: "{{ edge_extra_certs }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: edge_extra_certificates
+
+- name: Issue the extra certificates
+  ansible.builtin.command:
+    argv: >-
+      {{ ['certbot', 'certonly', '--non-interactive', '--agree-tos',
+          '--dns-cloudflare', '--dns-cloudflare-credentials', '/etc/letsencrypt/cloudflare.ini',
+          '--dns-cloudflare-propagation-seconds', '30',
+          '--cert-name', item.item.name]
+         + (item.item.domains | map('regex_replace', '^', '-d ') | join(' ') | split(' '))
+         + (['-m', edge_acme_email] if edge_acme_email | length > 0 else ['--register-unsafely-without-email']) }}
+  loop: "{{ edge_extra_certificates.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: not item.stat.exists
+  changed_when: true
+
 - name: Reload nginx after a renewal
   ansible.builtin.copy:
     content: |

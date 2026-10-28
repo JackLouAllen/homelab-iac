@@ -48,6 +48,12 @@ http {
     ssl_session_timeout 1d;
     ssl_session_tickets off;
 
+    # GitLab's live updates use WebSockets; a connection stays plain unless the client asks to upgrade
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
     # Anything that does not match a configured name
     server {
         listen 127.0.0.1:{{ edge_public_port }} default_server;
@@ -138,12 +144,15 @@ http {
         http2 on;
         server_name {{ site.host }};
 
-        ssl_certificate /etc/letsencrypt/live/{{ edge_cert_name }}/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/{{ edge_cert_name }}/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/{{ site.cert_name | default(edge_cert_name) }}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/{{ site.cert_name | default(edge_cert_name) }}/privkey.pem;
 
         include /etc/nginx/security-headers.conf;
 {% if not edge_acme_staging %}
         add_header Strict-Transport-Security "max-age=31536000" always;
+{% endif %}
+{% if site.max_body_size is defined %}
+        client_max_body_size {{ site.max_body_size }};
 {% endif %}
 
 {% if site.upstream | length > 0 %}
@@ -162,6 +171,18 @@ http {
             proxy_buffer_size 16k;
             proxy_buffers 8 16k;
             proxy_busy_buffers_size 32k;
+{% endif %}
+{% if site.proxy_timeout is defined %}
+            proxy_read_timeout {{ site.proxy_timeout }};
+            proxy_send_timeout {{ site.proxy_timeout }};
+{% endif %}
+{% if site.no_request_buffering | default(false) %}
+            proxy_request_buffering off;
+{% endif %}
+{% if site.websockets | default(false) %}
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
 {% endif %}
         }
 {% else %}
