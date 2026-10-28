@@ -25,6 +25,7 @@ mattermost['enable'] = false
 
 # Memory: Puma single mode (workers 0) and few threads, a small Sidekiq pool, a small shared buffer.
 puma['worker_processes'] = {{ gitlab_puma_workers }}
+puma['port'] = {{ gitlab_puma_port }}
 puma['max_threads'] = {{ gitlab_puma_max_threads }}
 sidekiq['concurrency'] = {{ gitlab_sidekiq_concurrency }}
 postgresql['shared_buffers'] = '{{ gitlab_postgres_shared_buffers }}'

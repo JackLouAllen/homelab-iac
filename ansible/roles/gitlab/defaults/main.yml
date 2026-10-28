@@ -18,6 +18,11 @@ gitlab_external_url: https://git.jacklouallen.info
 # Loopback address of GitLab's web server (workhorse), which nginx proxies to.
 gitlab_workhorse_listen: 127.0.0.1:8181
 
+# Puma (the Rails application) defaults to 127.0.0.1:8080, which on this host is CrowdSec's local API:
+# Puma then fails to bind and crash-loops, and workhorse answers 502. Keep it off the other ports in use
+# here (8008 and 8080 edge and CrowdSec, 8180 Keycloak, 8082 and 8092 Sidekiq, 9229 and 9236 metrics).
+gitlab_puma_port: 8182
+
 gitlab_data_root: /srv/gitlab
 gitlab_backup_dir: "{{ gitlab_data_root }}/backups"
 gitlab_backup_keep_seconds: 604800  # one week; restic keeps the long history
