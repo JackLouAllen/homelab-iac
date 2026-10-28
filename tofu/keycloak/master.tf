@@ -17,9 +17,18 @@ resource "keycloak_realm" "master" {
   # The console's sign-in follows the realm's frontend URL: with the public name here, the admin
   # console fails with "Timeout when waiting for 3rd party check iframe message" (the master
   # realm is not served on the public name).
+  #
+  # The other attributes were saved by the console and are invisible to the provider; undeclared, an
+  # apply would delete them (adminEventsExpiration is the retention for admin events).
   attributes = {
-    frontendUrl = "https://${var.admin_hostname}"
+    frontendUrl                     = "https://${var.admin_hostname}"
+    adminEventsExpiration           = "7776000"
+    clientOfflineSessionIdleTimeout = "0"
+    clientOfflineSessionMaxLifespan = "0"
+    scimApiEnabled                  = "false"
   }
+
+  default_signature_algorithm = "RS256"
 
   ssl_required = "external"
 
@@ -46,8 +55,8 @@ resource "keycloak_realm" "master" {
     relying_party_id                  = var.admin_hostname
     signature_algorithms              = ["ES256", "RS256"]
     attestation_conveyance_preference = "not specified"
-    authenticator_attachment          = "cross-platform"
-    user_verification_requirement     = "preferred"
+    authenticator_attachment          = "not specified"
+    user_verification_requirement     = "required"
     avoid_same_authenticator_register = true
     create_timeout                    = 0
   }
@@ -71,14 +80,6 @@ resource "keycloak_realm_events" "master" {
 
   admin_events_enabled         = true
   admin_events_details_enabled = false
-
-  enabled_event_types = [
-    "LOGIN", "LOGIN_ERROR", "LOGOUT", "LOGOUT_ERROR",
-    "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR",
-    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_TOTP", "REMOVE_TOTP",
-    "UPDATE_CREDENTIAL", "REMOVE_CREDENTIAL", "RESET_PASSWORD", "RESET_PASSWORD_ERROR",
-    "USER_DISABLED_BY_PERMANENT_LOCKOUT", "USER_DISABLED_BY_TEMPORARY_LOCKOUT",
-  ]
 
   events_listeners = ["jboss-logging"]
 }

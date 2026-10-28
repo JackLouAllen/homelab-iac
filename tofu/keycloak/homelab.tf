@@ -7,6 +7,8 @@ resource "keycloak_realm" "homelab" {
   display_name = var.app_realm_display_name
   ssl_required = "external"
 
+  default_signature_algorithm = "RS256"
+
   # No mail server yet: self-service registration and password reset would send nothing.
   registration_allowed     = false
   reset_password_allowed   = false
@@ -36,8 +38,8 @@ resource "keycloak_realm" "homelab" {
     relying_party_id                  = var.public_hostname
     signature_algorithms              = ["ES256", "RS256"]
     attestation_conveyance_preference = "not specified"
-    authenticator_attachment          = "cross-platform"
-    user_verification_requirement     = "preferred"
+    authenticator_attachment          = "not specified"
+    user_verification_requirement     = "required"
     avoid_same_authenticator_register = true
     create_timeout                    = 0
   }
@@ -56,14 +58,6 @@ resource "keycloak_realm_events" "homelab" {
 
   admin_events_enabled         = true
   admin_events_details_enabled = false
-
-  enabled_event_types = [
-    "LOGIN", "LOGIN_ERROR", "LOGOUT", "LOGOUT_ERROR",
-    "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR",
-    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_TOTP", "REMOVE_TOTP",
-    "UPDATE_CREDENTIAL", "REMOVE_CREDENTIAL", "RESET_PASSWORD", "RESET_PASSWORD_ERROR",
-    "USER_DISABLED_BY_PERMANENT_LOCKOUT", "USER_DISABLED_BY_TEMPORARY_LOCKOUT",
-  ]
 
   events_listeners = ["jboss-logging"]
 }
