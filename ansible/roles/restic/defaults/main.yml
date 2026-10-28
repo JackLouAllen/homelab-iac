@@ -40,6 +40,10 @@ restic_backup_paths:
 restic_excludes:
   - /etc/machine-id
   - /var/ossec/logs/alerts/*.tmp
+  # Keycloak's live PostgreSQL files would be copied in an inconsistent state: the nightly
+  # pg_dump in dumps/ is what gets backed up. Container images are rebuildable.
+  - /srv/containers/keycloak/volumes
+  - /srv/containers/*/.local/share/containers
 
 restic_retention:
   daily: 7
