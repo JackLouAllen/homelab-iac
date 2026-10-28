@@ -16,10 +16,10 @@ variable "keycloak_additional_headers" {
   default     = {}
 }
 
-variable "public_hostname" {
-  description = "Public name for logins: the hostname of every realm except master."
+variable "login_hostname" {
+  description = "Private name of the homelab realm: where its users sign in (tailnet only). Passkeys are tied to this name."
   type        = string
-  default     = "auth.jacklouallen.info"
+  default     = "auth.vaultnet.xyz"
 }
 
 variable "admin_hostname" {

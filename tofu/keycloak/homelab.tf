@@ -1,11 +1,15 @@
 # The realm for the people and services of the homelab: GitLab and the Wazuh dashboard sign in here
-# (their clients are added when those services exist). Logins use the public name, so unlike the
-# master realm this one has no frontend URL of its own.
+# (their clients are added when those services exist). It is served on a private name only, like the
+# master realm; the public name is kept for realms with outside users (the edge role lists them).
 resource "keycloak_realm" "homelab" {
   realm        = var.app_realm
   enabled      = true
   display_name = var.app_realm_display_name
   ssl_required = "external"
+
+  attributes = {
+    frontendUrl = "https://${var.login_hostname}"
+  }
 
   default_signature_algorithm = "RS256"
 
@@ -36,7 +40,7 @@ resource "keycloak_realm" "homelab" {
 
   web_authn_policy {
     relying_party_entity_name         = var.app_realm_display_name
-    relying_party_id                  = var.public_hostname
+    relying_party_id                  = var.login_hostname
     signature_algorithms              = ["ES256", "RS256"]
     attestation_conveyance_preference = "not specified"
     authenticator_attachment          = "not specified"
