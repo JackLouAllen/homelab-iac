@@ -1,0 +1,27 @@
+#!/usr/bin/bash
+# Managed by Ansible
+# Dump the Keycloak database from inside the pod's database container. The password is already in
+# that container's environment, so it never appears on the host or on a command line.
+set -euo pipefail
+umask 0077
+
+dir={{ keycloak_dump_dir }}
+keep={{ keycloak_dump_keep }}
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+tmp="$dir/.keycloak-$stamp.dump.partial"
+final="$dir/keycloak-$stamp.dump"
+trap 'rm -f "$tmp"' EXIT
+
+podman exec keycloak-db sh -c \
+    'PGPASSWORD="$POSTGRESQL_PASSWORD" exec pg_dump --format=custom --no-owner \
+        -h 127.0.0.1 -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE"' > "$tmp"
+
+# A dump that cannot be listed is not a backup: refuse to keep it.
+[ -s "$tmp" ]
+podman exec -i keycloak-db pg_restore --list < "$tmp" > /dev/null
+
+mv "$tmp" "$final"
+
+# Keep the newest $keep dumps
+ls -1t "$dir"/keycloak-*.dump | tail -n +$((keep + 1)) | xargs -r rm -f
+echo "wrote $final ($(stat -c %s "$final") bytes)"

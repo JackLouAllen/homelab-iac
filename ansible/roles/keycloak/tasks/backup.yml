@@ -1,0 +1,47 @@
+---
+- name: Create the dumps directory
+  ansible.builtin.file:
+    path: "{{ keycloak_dump_dir }}"
+    state: directory
+    owner: "{{ keycloak_user }}"
+    group: "{{ keycloak_user }}"
+    mode: "0700"
+
+- name: Install the dump script
+  ansible.builtin.template:
+    src: keycloak-dump.sh.j2
+    dest: /usr/local/sbin/keycloak-dump
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the restore test script
+  ansible.builtin.template:
+    src: keycloak-restore-test.sh.j2
+    dest: /usr/local/sbin/keycloak-restore-test
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the dump service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - keycloak-dump.service
+    - keycloak-dump.timer
+  notify: Reload systemd for keycloak
+
+- name: Flush handlers before enabling the timer
+  ansible.builtin.meta: flush_handlers
+
+# In check mode the unit files above are not written, so systemd cannot find the timer yet.
+- name: Enable the dump timer
+  ansible.builtin.systemd_service:
+    name: keycloak-dump.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

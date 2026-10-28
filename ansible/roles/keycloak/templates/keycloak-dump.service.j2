@@ -1,0 +1,14 @@
+# Managed by Ansible
+[Unit]
+Description=Dump the Keycloak database
+After=user@{{ keycloak_uid }}.service
+
+[Service]
+Type=oneshot
+User={{ keycloak_user }}
+Group={{ keycloak_user }}
+WorkingDirectory=/
+Environment=HOME={{ keycloak_home }}
+Environment=XDG_RUNTIME_DIR={{ keycloak_xdg_runtime_dir }}
+ExecStart=/usr/local/sbin/keycloak-dump
+UMask=0077

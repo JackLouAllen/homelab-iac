@@ -1,0 +1,10 @@
+# Managed by Ansible
+[Unit]
+Description=Dump the Keycloak database daily
+
+[Timer]
+OnCalendar={{ keycloak_dump_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

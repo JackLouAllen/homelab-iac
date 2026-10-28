@@ -25,6 +25,9 @@ Environment=KC_HOSTNAME={{ keycloak_hostname }}
 Environment=KC_HOSTNAME_ADMIN={{ keycloak_hostname_admin }}
 Environment=KC_HEALTH_ENABLED=true
 Environment=KC_LOG_CONSOLE_OUTPUT=json
+# The jboss-logging event listener writes failed events at WARN but successful ones (logins,
+# admin actions) at DEBUG, which the journal never sees. INFO makes them visible to Wazuh.
+Environment=KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL=info
 Environment="JAVA_OPTS_KC_HEAP={{ keycloak_java_heap }}"
 NoNewPrivileges=true
 DropCapability=ALL

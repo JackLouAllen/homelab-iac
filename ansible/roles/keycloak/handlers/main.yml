@@ -7,10 +7,17 @@
     chdir: /
   changed_when: true
 
+# Restart the pod unit, not the containers: the pod stops itself when both containers exit
+# (exit policy "stop") and the container units are bound to it, so restarting the containers
+# directly fails with a dependency error. Starting the pod pulls the containers back in.
 - name: Restart the Keycloak pod
   ansible.builtin.command: >-
     {{ keycloak_as_user }}
-    systemctl --user restart keycloak-db.service keycloak.service
+    systemctl --user restart keycloak-pod.service
   args:
     chdir: /
   changed_when: true
+
+- name: Reload systemd for keycloak
+  ansible.builtin.systemd_service:
+    daemon_reload: true

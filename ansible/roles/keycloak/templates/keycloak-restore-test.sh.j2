@@ -1,0 +1,41 @@
+#!/usr/bin/bash
+# Managed by Ansible
+# Restore a Keycloak dump into a throwaway PostgreSQL container and count rows. It does not touch
+# the real database: the scratch container has its own data directory and publishes no ports.
+# Usage: keycloak-restore-test /path/to/keycloak-<stamp>.dump   (run as root; a dump restored
+# from restic works the same way)
+set -euo pipefail
+
+dump=${1:?usage: keycloak-restore-test DUMPFILE}
+[ -r "$dump" ] || { echo "cannot read $dump" >&2; exit 1; }
+name=keycloak-restore-test
+
+as_user() {
+    runuser -u {{ keycloak_user }} -- env HOME={{ keycloak_home }} \
+        XDG_RUNTIME_DIR={{ keycloak_xdg_runtime_dir }} "$@"
+}
+cleanup() { (cd / && as_user podman rm -f -v "$name" >/dev/null 2>&1) || true; }
+trap cleanup EXIT
+cd /
+cleanup
+
+as_user podman run -d --name "$name" --pull=never \
+    -e POSTGRESQL_USER=restore -e POSTGRESQL_PASSWORD=restore-test-only -e POSTGRESQL_DATABASE=restore \
+    {{ keycloak_db_image }} > /dev/null
+
+for _ in $(seq 1 60); do
+    as_user podman exec "$name" pg_isready -h 127.0.0.1 -U restore -d restore -q && break
+    sleep 2
+done
+as_user podman exec "$name" pg_isready -h 127.0.0.1 -U restore -d restore -q
+
+# The dump is read by root and fed to pg_restore through stdin
+as_user podman exec -i "$name" sh -c \
+    'PGPASSWORD=restore-test-only pg_restore --no-owner -h 127.0.0.1 -U restore -d restore' < "$dump"
+
+echo "rows restored:"
+for t in realm client user_entity credential; do
+    n=$(as_user podman exec "$name" sh -c \
+        "PGPASSWORD=restore-test-only psql -h 127.0.0.1 -U restore -d restore -tAc 'select count(*) from $t'")
+    printf '  %-12s %s\n' "$t" "$n"
+done

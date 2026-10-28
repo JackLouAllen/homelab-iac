@@ -39,6 +39,14 @@ keycloak_bootstrap_admin_username: tmp-admin
 
 # Supplied at run time from a tmpfs copy of inventory/secrets/keycloak.sops.yml. Keys:
 # keycloak_db_password and keycloak_bootstrap_admin_password (each at least 24 characters).
-# They are stored as Podman secrets on first run only: later changes here do not rotate them.
+# They are stored as Podman secrets on first run only: later changes here do not rotate them
+# (see the rotation note in tasks/main.yml).
 keycloak_db_password: ""
 keycloak_bootstrap_admin_password: ""
+
+# Database dumps. restic copies the dumps directory, never the live data directory (that would
+# be an inconsistent copy). The dump runs 20 minutes before restic's backup (03:30 plus up to
+# 15 minutes of random delay).
+keycloak_dump_dir: "{{ keycloak_home }}/dumps"
+keycloak_dump_keep: 7
+keycloak_dump_calendar: "*-*-* 03:10:00 UTC"

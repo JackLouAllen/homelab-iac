@@ -47,8 +47,9 @@
       registry.redhat.io, podman pull the image, podman logout. Then re-run.
   when: keycloak_db_image_present.rc == 1
 
-# Secrets are created once from stdin. Podman has no update: to rotate, remove the secret and
-# re-run (and change the password inside PostgreSQL too: it only reads it on first start).
+# Secrets are created once from stdin. Podman has no update: to rotate, remove the secret
+# (podman secret rm), re-run, and the pod restart picks it up. The Red Hat PostgreSQL image applies
+# POSTGRESQL_PASSWORD with ALTER ROLE on every start (set_passwords.sh), so the database follows.
 - name: Check which Podman secrets exist
   ansible.builtin.command: >-
     {{ keycloak_as_user }}
@@ -125,3 +126,7 @@
   retries: 40
   delay: 10
   when: not ansible_check_mode
+
+- name: Backups
+  ansible.builtin.import_tasks: backup.yml
+  tags: [keycloak_backup]
