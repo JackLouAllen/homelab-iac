@@ -16,6 +16,11 @@ gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']
 gitlab_rails['gitlab_email_enabled'] = false
 gitlab_rails['time_zone'] = 'UTC'
 
+# Service Ping sends usage counts to GitLab Inc. Off in the file, so the admin page greys the box out and
+# it stays off after a rebuild. The version check (new-release notice) is left on: GitLab's repository is
+# not covered by dnf-automatic and the notice is how an update is noticed.
+gitlab_rails['usage_ping_enabled'] = false
+
 # What this instance does not use.
 prometheus_monitoring['enable'] = false
 gitlab_kas['enable'] = false
