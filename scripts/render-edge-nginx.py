@@ -35,7 +35,7 @@ env = jinja2.Environment(undefined=jinja2.StrictUndefined, trim_blocks=True)
 def resolve(value):
     if isinstance(value, str) and "{{" in value:
         out = env.from_string(value).render(**vars_)
-        if out[:1] in "[{":  # Ansible turns a rendered list or dict back into one
+        if out[:1] in ("[", "{"):  # Ansible turns a rendered list or dict back into one (an empty string stays one)
             return ast.literal_eval(out)
         return out
     if isinstance(value, list):

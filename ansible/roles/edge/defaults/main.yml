@@ -21,10 +21,17 @@ edge_public_port: 8008
 # assets). Master and homelab are never served there: the admin console and the master realm are on
 # auth-admin, the homelab realm on auth.vaultnet.xyz (both private).
 edge_keycloak_upstream: ""  # set to 127.0.0.1:<port> in group_vars once the pod runs
+edge_gitlab_upstream: ""  # set to 127.0.0.1:<workhorse port> in group_vars to open the public read-only door
 # Realms Keycloak may serve on the public name (for services with outside users). Empty: none.
 edge_keycloak_public_realms: []
 edge_public_sites:
-  - {host: git.jacklouallen.info, upstream: "", respond_text: git is not deployed yet, respond_status: 503}
+  # GitLab's public, read-only door (profile gitlab_readonly: see nginx-gitlab-readonly-http.conf.j2). Closed
+  # (a 503) until edge_gitlab_upstream is set in group_vars.
+  - host: git.jacklouallen.info
+    upstream: "{{ edge_gitlab_upstream }}"
+    profile: gitlab_readonly
+    respond_text: git is not deployed yet
+    respond_status: 503
   - host: auth.jacklouallen.info
     upstream: "{{ edge_keycloak_upstream }}"
     large_headers: true  # Keycloak's cookies and tokens overflow nginx's 4 KB default

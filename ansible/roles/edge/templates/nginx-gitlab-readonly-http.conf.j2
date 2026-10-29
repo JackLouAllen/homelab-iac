@@ -1,0 +1,58 @@
+    # GitLab's public door. Each request is classified once, by "METHOD /path" (the decoded, normalised path:
+    # %-encoding, // and ../ cannot get around a pattern), then refused, limited or proxied by its class.
+    # GitLab decides who may see what; this only narrows how the public can reach it.
+    #
+    #   private  sign-in, sign-up, SSO, admin, settings, the web IDE, health and metrics: tailnet only
+    #   method   anything that is not a read, apart from the exceptions below
+    #   beacon   GitLab's usage-tracking ping: answered here, never sent to GitLab
+    #   clone    git's own read requests (the ref advertisement and the upload-pack POST)
+    #   graphql  the API the pages are built from (about 120 calls over 44 pages)
+    #   heavy    work that costs a lot of CPU: archives and search
+    #   static   scripts, styles and images that ship with GitLab
+    #   read     every other page, and the few REST reads the pages make
+    map "$request_method $uri" $gl_class {
+        default                                                   read;
+
+        "~^(?:GET|HEAD) /.+\.git/info/refs$"                      clone;
+        "~^POST /.+\.git/git-upload-pack$"                        clone;
+        "~^(?:GET|POST) /api/graphql$"                            graphql;
+        "~^POST /-/collect_events$"                               beacon;
+
+        "~^(?!(?:GET|HEAD) )"                                     method;
+
+        # Only the /users/<name>/<tab> pages of a public profile stay; /users/sign_in, /users/auth/..., and
+        # /users/password all refuse.
+        "~*^\S+ /users/(?!(?:[^/]+)/(?:projects|contributed|starred|snippets|followers|following|groups|activity|calendar|calendar_activities|exists)(?:/|$|\.))"   private;
+        "~*^\S+ /(?:oauth|admin|import|jira)(?:/|$)"              private;
+        "~*^\S+ /-/(?:profile|user_settings|ide|cable|jira|metrics|readiness|liveness|health|health_check|monitoring)(?:/|$)"   private;
+        "~*^\S+ /\.well-known/"                                   private;
+        # The repository graph loads avatars from a third party even with Gravatar off; not served.
+        "~*^\S+ /.+/-/network/"                                  private;
+
+        # The REST API: reads of one project's data, which is what the pages call; the rest of it, including
+        # the user and project listings, refuses.
+        "~^(?:GET|HEAD) /api/v4/projects/[0-9]+/repository/archive"   heavy;
+        "~^(?:GET|HEAD) /api/v4/projects/[0-9]+/"                 read;
+        "~*^\S+ /api/"                                            private;
+
+        "~^\S+ /.+/-/archive/"                                    heavy;
+        # Only the search page itself: one search makes about six /search/count calls, which GitLab limits
+        # itself and which the page needs.
+        "~^\S+ /search$"                                          heavy;
+        "~^\S+ /(?:assets|-/webpack)/"                            static;
+    }
+
+{% set lim = site.limits | default({}) %}
+    # One bucket per client address and class. An empty key is not counted, so a request is limited only by
+    # the zone of its own class.
+    map $gl_class $gl_k_read    { read $binary_remote_addr; default ""; }
+    map $gl_class $gl_k_graphql { graphql $binary_remote_addr; default ""; }
+    map $gl_class $gl_k_clone   { clone $binary_remote_addr; default ""; }
+    map $gl_class $gl_k_heavy   { heavy $binary_remote_addr; default ""; }
+    map $gl_class $gl_k_static  { static $binary_remote_addr; default ""; }
+    limit_req_zone $gl_k_read    zone=gl_read:10m    rate={{ lim.read | default('20r/s') }};
+    limit_req_zone $gl_k_graphql zone=gl_graphql:10m rate={{ lim.graphql | default('10r/s') }};
+    limit_req_zone $gl_k_clone   zone=gl_clone:10m   rate={{ lim.clone | default('2r/s') }};
+    limit_req_zone $gl_k_heavy   zone=gl_heavy:10m   rate={{ lim.heavy | default('12r/m') }};
+    limit_req_zone $gl_k_static  zone=gl_static:10m  rate={{ lim.static | default('100r/s') }};
+    limit_conn_zone $binary_remote_addr zone=gl_conn:10m;

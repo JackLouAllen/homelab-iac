@@ -1,0 +1,63 @@
+        # GitLab's public, read-only door (see nginx-gitlab-readonly-http.conf.j2 for the classes).
+        default_type text/plain;
+        limit_req_status 429;
+        limit_conn gl_conn 30;
+        # Cheap refusals first: nothing reaches GitLab.
+        # This door is anonymous by construction. Credentials in the query string are refused here, and the
+        # headers that carry them are removed below: a leaked token or session must not read private
+        # repositories from the internet.
+        if ($arg_private_token != "") { return 404; }
+        if ($arg_access_token != "")  { return 404; }
+        if ($arg_feed_token != "")    { return 404; }
+        if ($arg_job_token != "")     { return 404; }
+        if ($arg_rss_token != "")     { return 404; }
+        # The visitor's "Sign in" link: say why it leads nowhere.
+        location ~* ^/users/(?:sign_in|sign_up)/?$ {
+            return 404 "Signing in is only possible from the owner's private network. This is the public, read-only view.\n";
+        }
+
+        # git clone and fetch of a public project. The POST can be large and the answer is a stream.
+        location ~ ^/.+\.git/git-upload-pack$ {
+            if ($gl_class != clone) { return 404; }
+            limit_req zone=gl_clone burst=10 nodelay;
+            client_max_body_size 64m;
+            proxy_request_buffering off;
+            proxy_buffering off;
+            proxy_read_timeout 300s;
+            proxy_send_timeout 300s;
+            proxy_pass http://{{ site.upstream }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Authorization "";
+            proxy_set_header Cookie "";
+            proxy_set_header Private-Token "";
+            proxy_set_header Job-Token "";
+            proxy_set_header Deploy-Token "";
+        }
+
+        location / {
+            if ($gl_class = private) { return 404; }
+            if ($gl_class = method)  { return 405; }
+            if ($gl_class = beacon)  { return 204; }
+            # Never advertise pushing, whatever the path.
+            if ($arg_service = git-receive-pack) { return 404; }
+            limit_req zone=gl_read burst=60 nodelay;
+            limit_req zone=gl_graphql burst=40 nodelay;
+            limit_req zone=gl_clone burst=10 nodelay;
+            limit_req zone=gl_heavy burst=4 nodelay;
+            limit_req zone=gl_static burst=200 nodelay;
+            client_max_body_size 256k;
+            proxy_pass http://{{ site.upstream }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Authorization "";
+            proxy_set_header Cookie "";
+            proxy_set_header Private-Token "";
+            proxy_set_header Job-Token "";
+            proxy_set_header Deploy-Token "";
+            proxy_read_timeout 120s;
+        }
