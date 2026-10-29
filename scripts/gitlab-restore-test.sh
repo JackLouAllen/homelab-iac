@@ -55,6 +55,8 @@ for _ in $(seq 1 120); do
     sleep 3
 done
 wait_ready || { echo "the empty GitLab never became ready" >&2; exit 1; }
+# Every gitlab-rails command starts the whole Rails application: about a minute each, silently.
+echo "checking the empty instance (each check takes about a minute)..."
 echo "empty instance: projects = $(run gitlab-rails runner 'puts Project.count' 2> /dev/null | tail -1)"
 
 backup_dir=$(run gitlab-rails runner 'puts Gitlab.config.backup.path' 2> /dev/null | tail -1)
@@ -63,12 +65,14 @@ run sh -c "chown git:git '$backup_dir/$base' && chmod 600 '$backup_dir/$base'"
 run gitlab-ctl stop puma > /dev/null
 run gitlab-ctl stop sidekiq > /dev/null
 
-echo "restoring $backup_id ..."
+echo "restoring $backup_id (about a minute)..."
 run gitlab-backup restore BACKUP="$backup_id" GITLAB_ASSUME_YES=1 > "$work/restore.log" 2>&1 || { tail -20 "$work/restore.log"; echo "RESTORE FAILED" >&2; exit 1; }
 grep -E "Restoring (database|repositories|uploads) \.\.\. done" "$work/restore.log" | sed 's/^/  /'
+echo "restarting GitLab and waiting for it (a minute or two)..."
 run gitlab-ctl restart > /dev/null
 wait_ready || { echo "GitLab did not come back after the restore" >&2; exit 1; }
 
+echo "counting what came back (about a minute)..."
 echo "restored instance:"
 run gitlab-rails runner '
   puts "  users     = #{User.count}"
@@ -78,7 +82,7 @@ run gitlab-rails runner '
   puts "  commits on default branches: #{Project.all.sum { |p| p.repository.exists? && !p.repository.empty? ? p.repository.commit_count : 0 }}"
 ' 2> /dev/null | tail -4
 
-echo "secrets check (every encrypted value must decrypt with the secrets file):"
+echo "secrets check (every encrypted value must decrypt with the secrets file; about a minute):"
 doctor=$(run gitlab-rake gitlab:doctor:secrets 2>&1)
 tables=$(printf '%s\n' "$doctor" | grep -c "failures: " || true)
 failed=$(printf '%s\n' "$doctor" | grep "failures: " | grep -vc "failures: 0" || true)
