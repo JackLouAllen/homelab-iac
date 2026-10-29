@@ -56,6 +56,15 @@ gitlab_package_key_url: https://packages.gitlab.com/gpgkey/gitlab/CB947AD886C8E8
 gitlab_package_key_fingerprint: 98BFDB87FCF10076416C1E0BAD997ACC82DD593D  # gitleaks:allow (public signing-key fingerprint)
 gitlab_repo_url: https://packages.gitlab.com/gitlab/gitlab-ce/el/10/$basearch
 
+# Settings that live in GitLab's database (Admin area, Settings), not in gitlab.rb. Applied once GitLab is up
+# and compared with what is there, so a rebuild comes back the same and a change made by hand shows up as
+# "changed" on the next run. Names are ApplicationSetting attributes.
+gitlab_application_settings:
+  signup_enabled: false            # accounts come from single sign-on; nobody registers themselves
+  gravatar_enabled: false          # otherwise a visitor's browser contacts gravatar.com for every avatar
+  default_project_visibility: 0    # private (0), internal (10), public (20): a project is made public on purpose
+  home_page_url: "{{ gitlab_external_url }}/explore"   # an anonymous visitor lands on the public projects
+
 # Single sign-on through Keycloak: the homelab realm, on its private name, with the client "gitlab" that
 # tofu/keycloak creates. A user who signs in gets a GitLab account of that name automatically (sign-up
 # stays off, and only people in that realm can authenticate), as a regular user; promote one by hand.

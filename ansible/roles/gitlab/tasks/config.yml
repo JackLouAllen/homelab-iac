@@ -59,3 +59,20 @@
   register: gitlab_oidc_discovery
   failed_when: gitlab_oidc_discovery.json.issuer | default('') != gitlab_oidc_issuer
   when: gitlab_oidc_enabled and not ansible_check_mode
+
+- name: Install the application settings script
+  ansible.builtin.copy:
+    src: apply_settings.rb
+    dest: /etc/gitlab/apply_settings.rb
+    owner: root
+    group: root
+    mode: "0644"
+
+# The script prints "changed: a, b" when it changed something and "unchanged" when it did not.
+- name: Apply GitLab's application settings
+  ansible.builtin.command: gitlab-rails runner /etc/gitlab/apply_settings.rb
+  environment:
+    GITLAB_SETTINGS: "{{ gitlab_application_settings | to_json }}"
+  register: gitlab_settings_result
+  changed_when: "'changed:' in gitlab_settings_result.stdout"
+  when: not ansible_check_mode
