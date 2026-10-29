@@ -38,3 +38,9 @@ variable "app_realm_display_name" {
   type    = string
   default = "Homelab"
 }
+
+variable "gitlab_hostname" {
+  description = "GitLab's one canonical name (its external_url). The OIDC callback is on it."
+  type        = string
+  default     = "git.jacklouallen.info"
+}
