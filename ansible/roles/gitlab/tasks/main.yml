@@ -19,3 +19,7 @@
 - name: Configuration, memory limit and start
   ansible.builtin.import_tasks: config.yml
   tags: [gitlab_config]
+
+- name: Backups
+  ansible.builtin.import_tasks: backup.yml
+  tags: [gitlab_backup]

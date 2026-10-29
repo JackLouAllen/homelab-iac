@@ -37,6 +37,8 @@ restic_backup_paths:
   - /var/ossec/api/configuration
   - /var/ossec/logs/alerts
   - /srv/containers
+  # GitLab's backup archives (the program and live data on /srv/gitlab are not backed up: the archive is).
+  - /srv/gitlab/backups
 restic_excludes:
   - /etc/machine-id
   - /var/ossec/logs/alerts/*.tmp

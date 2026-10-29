@@ -1,0 +1,22 @@
+---
+- name: Install the backup service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - gitlab-backup.service
+    - gitlab-backup.timer
+  notify: Reload systemd for gitlab
+
+- name: Apply the unit files now
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the backup timer
+  ansible.builtin.systemd_service:
+    name: gitlab-backup.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

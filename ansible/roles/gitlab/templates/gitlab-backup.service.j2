@@ -1,0 +1,18 @@
+# Managed by Ansible
+[Unit]
+Description=GitLab backup
+After=gitlab-runsvdir.service
+Requires=gitlab-runsvdir.service
+
+[Service]
+Type=oneshot
+# STRATEGY=copy: copy repositories into a staging area first, so a repository changing mid-backup is
+# not read half-written. CRON=1: no progress output. Old archives are pruned by backup_keep_time in
+# gitlab.rb. The archive does NOT contain gitlab-secrets.json or gitlab.rb: restic backs up /etc.
+ExecStart=/usr/bin/gitlab-backup create STRATEGY=copy CRON=1
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+# The Rails task that does the work needs memory of its own, outside the limit on GitLab itself.
+MemoryMax={{ gitlab_backup_memory_max }}
+TimeoutStartSec=2h

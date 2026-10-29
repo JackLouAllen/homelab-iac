@@ -1,0 +1,10 @@
+# Managed by Ansible
+[Unit]
+Description=GitLab backup daily
+
+[Timer]
+OnCalendar={{ gitlab_backup_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

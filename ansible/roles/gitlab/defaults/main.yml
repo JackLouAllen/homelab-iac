@@ -26,6 +26,10 @@ gitlab_puma_port: 8182
 gitlab_data_root: /srv/gitlab
 gitlab_backup_dir: "{{ gitlab_data_root }}/backups"
 gitlab_backup_keep_seconds: 604800  # one week; restic keeps the long history
+# One hour before restic's 03:30 backup (plus its random delay), after the Keycloak dump at 03:10 is
+# done with its few seconds of work.
+gitlab_backup_calendar: "*-*-* 03:00:00 UTC"
+gitlab_backup_memory_max: 3G
 
 # Directories bind-mounted from the data volume before anything is installed.
 gitlab_bind_dirs:
