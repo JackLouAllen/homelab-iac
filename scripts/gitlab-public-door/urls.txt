@@ -1,0 +1,44 @@
+# the front door and the public listings
+/
+/explore
+/explore/projects
+/explore/groups
+/explore/snippets
+# a user profile and its tabs
+/root
+/users/root/projects
+/users/root/snippets
+# a public project: code
+/root/portfolio-site
+/root/portfolio-site/-/tree/main
+/root/portfolio-site/-/tree/main/docs
+/root/portfolio-site/-/blob/main/README.md
+/root/portfolio-site/-/blob/main/src/app.py
+/root/portfolio-site/-/raw/main/README.md
+/root/portfolio-site/-/commits/main
+/root/portfolio-site/-/commit/__SHA__
+/root/portfolio-site/-/branches
+/root/portfolio-site/-/tags
+/root/portfolio-site/-/tags/v1.0
+/root/portfolio-site/-/compare?from=main&to=feature
+/root/portfolio-site/-/graphs/main
+/root/portfolio-site/-/network/main
+# a public project: planning
+/root/portfolio-site/-/issues
+/root/portfolio-site/-/issues/1
+/root/portfolio-site/-/merge_requests
+/root/portfolio-site/-/merge_requests/1
+/root/portfolio-site/-/merge_requests/1/diffs
+/root/portfolio-site/-/pipelines
+/root/portfolio-site/-/project_members
+# a public group, a snippet, search
+/labs
+/labs/demo
+/snippets/1
+/search?search=hello
+/search?search=hello&project_id=1
+# private things an anonymous visitor must not see
+/root/secret-infra
+/root/secret-infra/-/blob/main/README.md
+# what the visitor's Sign in link leads to
+/users/sign_in
