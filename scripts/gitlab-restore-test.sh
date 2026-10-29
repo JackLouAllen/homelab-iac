@@ -46,9 +46,12 @@ ready() { run curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8181/-/rea
 wait_ready() { for _ in $(seq 1 120); do [ "$(ready)" = 200 ] && return 0; sleep 5; done; return 1; }
 
 echo "waiting for the empty GitLab to configure itself (a few minutes)..."
+# Read the log into a variable first: with pipefail, "docker logs | grep -q" is reported as failed when
+# grep exits early and docker logs is killed by SIGPIPE, so a long log made this loop wait forever.
 for _ in $(seq 1 120); do
-    "$engine" logs "$name" 2>&1 | grep -q "gitlab Reconfigured!" && break
-    "$engine" logs "$name" 2>&1 | grep -qiE "Chef Infra Client failed|FATAL:" && { echo "the empty GitLab failed to configure" >&2; exit 1; }
+    logs=$("$engine" logs "$name" 2>&1 || true)
+    grep -q "gitlab Reconfigured!" <<< "$logs" && break
+    grep -qiE "Chef Infra Client failed|FATAL:" <<< "$logs" && { echo "the empty GitLab failed to configure" >&2; exit 1; }
     sleep 3
 done
 wait_ready || { echo "the empty GitLab never became ready" >&2; exit 1; }
