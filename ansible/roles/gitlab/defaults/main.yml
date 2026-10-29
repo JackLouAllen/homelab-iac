@@ -56,6 +56,19 @@ gitlab_package_key_url: https://packages.gitlab.com/gpgkey/gitlab/CB947AD886C8E8
 gitlab_package_key_fingerprint: 98BFDB87FCF10076416C1E0BAD997ACC82DD593D  # gitleaks:allow (public signing-key fingerprint)
 gitlab_repo_url: https://packages.gitlab.com/gitlab/gitlab-ce/el/10/$basearch
 
+# Single sign-on through Keycloak: the homelab realm, on its private name, with the client "gitlab" that
+# tofu/keycloak creates. A user who signs in gets a GitLab account of that name automatically (sign-up
+# stays off, and only people in that realm can authenticate), as a regular user; promote one by hand.
+# The password form stays as the break-glass way in for root.
+gitlab_oidc_enabled: true
+gitlab_oidc_issuer: https://auth.vaultnet.xyz/realms/homelab
+gitlab_oidc_client_id: gitlab
+gitlab_oidc_label: Keycloak
+# From `tofu output -raw gitlab_client_secret` (tofu/keycloak), kept in the same sops file as the root
+# password. It is written into gitlab.rb, not passed as an environment variable: the package runs
+# gitlab-ctl reconfigure by itself on every upgrade, without our environment, and would blank it.
+gitlab_oidc_secret: ""
+
 # Supplied at run time from a tmpfs copy of inventory/secrets/gitlab.sops.yml. Used only when GitLab
 # first creates the database (the initial root password); changing it later does nothing.
 # GitLab refuses a password made of common words or patterns ("Password must not contain commonly used

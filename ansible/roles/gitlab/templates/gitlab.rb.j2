@@ -38,3 +38,31 @@ postgresql['shared_buffers'] = '{{ gitlab_postgres_shared_buffers }}'
 # Backups are written here, then restic copies them off the host.
 gitlab_rails['backup_path'] = '{{ gitlab_backup_dir }}'
 gitlab_rails['backup_keep_time'] = {{ gitlab_backup_keep_seconds }}
+{% if gitlab_oidc_enabled %}
+
+# Single sign-on with Keycloak (OpenID Connect, authorization code flow with PKCE). Sign-up is off, so the
+# only way in besides root is a user of the homelab realm, whose first sign-in creates an unblocked account.
+gitlab_rails['omniauth_enabled'] = true
+gitlab_rails['omniauth_allow_single_sign_on'] = ['openid_connect']
+gitlab_rails['omniauth_block_auto_created_users'] = false
+gitlab_rails['omniauth_providers'] = [
+  {
+    name: 'openid_connect',
+    label: '{{ gitlab_oidc_label }}',
+    args: {
+      name: 'openid_connect',
+      scope: ['openid', 'profile', 'email'],
+      response_type: 'code',
+      issuer: '{{ gitlab_oidc_issuer }}',
+      discovery: true,
+      uid_field: 'preferred_username',
+      pkce: true,
+      client_options: {
+        identifier: '{{ gitlab_oidc_client_id }}',
+        secret: '{{ gitlab_oidc_secret }}',
+        redirect_uri: '{{ gitlab_external_url }}/users/auth/openid_connect/callback'
+      }
+    }
+  }
+]
+{% endif %}

@@ -8,6 +8,16 @@
     quiet: true
   no_log: true
 
+- name: Check the single sign-on secret was supplied
+  ansible.builtin.assert:
+    that: gitlab_oidc_secret | length >= 32
+    fail_msg: >-
+      Pass gitlab_oidc_secret (from `tofu output -raw gitlab_client_secret` in tofu/keycloak) in
+      inventory/secrets/gitlab.sops.yml, or set gitlab_oidc_enabled to false.
+    quiet: true
+  when: gitlab_oidc_enabled
+  no_log: true
+
 - name: Directories on the data volume
   ansible.builtin.import_tasks: mounts.yml
   tags: [gitlab_mounts]

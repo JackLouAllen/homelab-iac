@@ -1,4 +1,5 @@
 ---
+# diff: false, because the file holds the single sign-on secret and --diff would print it.
 - name: Write the GitLab configuration
   ansible.builtin.template:
     src: gitlab.rb.j2
@@ -7,6 +8,7 @@
     group: root
     mode: "0600"
   notify: Reconfigure GitLab
+  diff: false
 
 - name: Create the memory limit drop-in directory
   ansible.builtin.file:
@@ -46,3 +48,14 @@
   retries: 60
   delay: 10
   when: not ansible_check_mode
+
+# The sign-in goes browser, then Keycloak on its private name, then GitLab calls Keycloak itself to trade the
+# code for a token. This is that second call's path (name resolution, certificate, nginx, Keycloak), checked
+# from the host before anyone hits it.
+- name: Check GitLab can reach Keycloak's discovery document
+  ansible.builtin.uri:
+    url: "{{ gitlab_oidc_issuer }}/.well-known/openid-configuration"
+    return_content: true
+  register: gitlab_oidc_discovery
+  failed_when: gitlab_oidc_discovery.json.issuer | default('') != gitlab_oidc_issuer
+  when: gitlab_oidc_enabled and not ansible_check_mode
