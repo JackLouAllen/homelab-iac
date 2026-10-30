@@ -1,0 +1,5 @@
+---
+- name: CI runner
+  hosts: oci
+  roles:
+    - {role: runner, tags: [runner]}

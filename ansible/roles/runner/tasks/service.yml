@@ -1,0 +1,68 @@
+---
+- name: Directories for the runner
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: "0700"
+  loop:
+    - "{{ runner_home }}/builds"
+    - "{{ runner_home }}/.config"
+    - "{{ runner_home }}/.config/containers"
+    - "{{ runner_home }}/.config/systemd"
+    - "{{ runner_home }}/.config/systemd/user"
+
+- name: Cap the processes of every container the account creates
+  ansible.builtin.template:
+    src: containers.conf.j2
+    dest: "{{ runner_home }}/.config/containers/containers.conf"
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: "0644"
+
+- name: Install the runner's user service
+  ansible.builtin.template:
+    src: gitlab-runner.service.j2
+    dest: "{{ runner_home }}/.config/systemd/user/gitlab-runner.service"
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: "0644"
+  notify:
+    - Reload the runner's user systemd
+    - Restart the runner
+
+- name: Flush handlers before starting the units
+  ansible.builtin.meta: flush_handlers
+
+# podman.socket is the user unit shipped with Podman: the API the runner talks to.
+- name: Start Podman's socket for the account
+  ansible.builtin.command: >-
+    {{ runner_as_user }}
+    systemctl --user enable --now podman.socket
+  args:
+    chdir: /
+  changed_when: false
+  when: not ansible_check_mode
+
+# The configuration holds the token. Without one, nothing is written and the service is not started, so the
+# rest of the role can be applied first and the runner created in GitLab afterwards.
+- name: Write the runner configuration
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: "{{ runner_home }}/config.toml"
+    owner: "{{ runner_user }}"
+    group: "{{ runner_user }}"
+    mode: "0600"
+  when: runner_token | length > 0
+  no_log: true
+  notify: Restart the runner
+
+- name: Start the runner
+  ansible.builtin.command: >-
+    {{ runner_as_user }}
+    systemctl --user enable --now gitlab-runner.service
+  args:
+    chdir: /
+  changed_when: false
+  when: runner_token | length > 0 and not ansible_check_mode

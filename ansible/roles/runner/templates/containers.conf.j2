@@ -1,0 +1,4 @@
+# Managed by Ansible. Applies to every container the runner account creates, including through the API socket,
+# which is the one way a job's container count of processes can be capped (the runner has no such setting).
+[containers]
+pids_limit = {{ runner_pids_limit }}

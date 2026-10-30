@@ -1,0 +1,31 @@
+# Managed by Ansible. Holds the runner's authentication token: owner and mode matter.
+concurrent = {{ runner_concurrent }}
+check_interval = 5
+shutdown_timeout = 60
+
+[[runners]]
+  name = "{{ inventory_hostname }}-podman"
+  url = "{{ runner_gitlab_url }}"
+  clone_url = "{{ runner_gitlab_url }}"
+  token = "{{ runner_token }}"
+  executor = "docker"
+  output_limit = 4096
+
+  [runners.docker]
+    # The runner account's own rootless Podman, through its Docker-compatible socket. This socket is never given to a job.
+    host = "unix://{{ runner_xdg_runtime_dir }}/podman/podman.sock"
+    tls_verify = false
+    image = "{{ runner_default_image }}"
+    privileged = false
+    disable_cache = true
+    # Jobs reach GitLab through the private door; the firewall (runner-egress) lets exactly that address through.
+    extra_hosts = ["{{ runner_gitlab_name }}:{{ runner_gitlab_address }}"]
+    memory = "{{ runner_job_memory }}"
+    memory_swap = "{{ runner_job_memory }}"
+    cpus = "{{ runner_job_cpus }}"
+    shm_size = {{ runner_job_shm }}
+    security_opt = ["no-new-privileges"]
+    pull_policy = ["if-not-present"]
+    allowed_pull_policies = ["if-not-present"]
+    allowed_images = [{% for image in runner_allowed_images %}"{{ image }}"{{ ", " if not loop.last }}{% endfor %}]
+    allowed_services = []

@@ -1,0 +1,54 @@
+---
+- name: Directory for the runner's firewall rules
+  ansible.builtin.file:
+    path: /etc/nftables
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the runner's firewall rules
+  ansible.builtin.template:
+    src: runner-egress.nft.j2
+    dest: /etc/nftables/runner-egress.nft
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/nft -c -f %s
+  notify: Reload the runner's network rules
+
+- name: Directories for the drop-ins
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "/etc/systemd/system/user-{{ runner_uid }}.slice.d"
+    - "/etc/systemd/system/user@{{ runner_uid }}.service.d"
+
+- name: Install the units that load them and limit the account
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {src: runner-egress.service.j2, dest: /etc/systemd/system/runner-egress.service}
+    - {src: user-slice-limits.conf.j2, dest: "/etc/systemd/system/user-{{ runner_uid }}.slice.d/limits.conf"}
+    - {src: user-manager.conf.j2, dest: "/etc/systemd/system/user@{{ runner_uid }}.service.d/runner-egress.conf"}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Reload systemd for runner
+
+- name: Apply the unit files now
+  ansible.builtin.meta: flush_handlers
+
+- name: Load the rules at every boot, and now
+  ansible.builtin.systemd_service:
+    name: runner-egress.service
+    enabled: true
+    state: started
+  when: not ansible_check_mode

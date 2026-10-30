@@ -29,3 +29,35 @@ runner_repo_key_fingerprint: F6403F6544A38863DAA0B6E03F01618A51312F3F  # gitleak
 # The older "GitLab, Inc." runner key (4C80FB51394521E9) expired in 2023 and is not imported.
 runner_package_key_url: https://packages.gitlab.com/gpgkey/runner/49F16C5CC3A0F81F.pub.gpg
 runner_package_key_fingerprint: 931DA69CFA3AFEBBC97DAA8C6C57C29C6BA75A4E  # gitleaks:allow (public signing-key fingerprint)
+
+# Prefix for commands that run as the runner account (see the keycloak role for why HOME is set here).
+runner_as_user: >-
+  runuser -u {{ runner_user }} -- env HOME={{ runner_home }}
+  XDG_RUNTIME_DIR={{ runner_xdg_runtime_dir }}
+
+# Where the runner finds GitLab: the private door, which this host resolves to its own tailnet address.
+runner_gitlab_url: https://git.jacklouallen.info
+runner_gitlab_name: git.jacklouallen.info
+# The runner's authentication token (glrt-...), shown once when the runner is created in GitLab (Settings, CI/CD,
+# Runners, New project runner). It goes in inventory/secrets/runner.sops.yml. Empty: everything else is installed
+# but no configuration is written and the service is not started.
+runner_token: ""
+
+# What a job gets. Names must be fully qualified: an unqualified name matches nothing here and is refused.
+runner_default_image: registry.access.redhat.com/ubi10/ubi-minimal:latest
+runner_allowed_images:
+  - ghcr.io/*
+  - quay.io/*
+  - registry.access.redhat.com/*
+  - docker.io/library/*
+runner_job_memory: 3g
+runner_job_cpus: "2"
+runner_job_shm: 268435456
+runner_concurrent: 1
+runner_pids_limit: 512
+
+# Everything the account runs (the runner, Podman, all job containers) together. user-<uid>.slice.
+runner_slice_memory_high: 3500M
+runner_slice_memory_max: 4G
+runner_slice_cpu_quota: 200%
+runner_slice_tasks_max: 1024

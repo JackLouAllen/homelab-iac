@@ -1,0 +1,16 @@
+# Managed by Ansible. A user service of the runner account.
+[Unit]
+Description=GitLab Runner (rootless Podman executor)
+After=podman.socket
+Requires=podman.socket
+
+[Service]
+ExecStart=/usr/bin/gitlab-runner run --config {{ runner_home }}/config.toml --working-directory {{ runner_home }}/builds
+Environment=HOME={{ runner_home }}
+Restart=always
+RestartSec=10
+# Finish the jobs in progress (shutdown_timeout) before stopping
+TimeoutStopSec=90
+
+[Install]
+WantedBy=default.target

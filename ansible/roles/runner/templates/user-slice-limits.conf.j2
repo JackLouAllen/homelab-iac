@@ -1,0 +1,9 @@
+# Managed by Ansible. Everything the runner account runs, together: the runner, Podman and all job containers.
+[Slice]
+MemoryHigh={{ runner_slice_memory_high }}
+MemoryMax={{ runner_slice_memory_max }}
+MemorySwapMax=0
+CPUQuota={{ runner_slice_cpu_quota }}
+CPUWeight=20
+IOWeight=20
+TasksMax={{ runner_slice_tasks_max }}

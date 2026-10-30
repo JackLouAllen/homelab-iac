@@ -1,0 +1,32 @@
+---
+- name: Check the network rules have an address to allow
+  ansible.builtin.assert:
+    that: runner_gitlab_address | length > 0
+    fail_msg: tailscale0 has no address; join the tailnet first (the runner's jobs may reach only the private door).
+    quiet: true
+
+- name: Check the token has the right shape when one is given
+  ansible.builtin.assert:
+    that: runner_token | length == 0 or (runner_token is match('^glrt-[A-Za-z0-9_.-]{20,}$'))
+    fail_msg: runner_token must be a runner authentication token (glrt-...) or empty.
+    quiet: true
+  no_log: true
+
+# Facts the rest of the role relies on: the account and its user systemd instance exist.
+- name: Check the service account exists and lingers
+  ansible.builtin.stat:
+    path: /var/lib/systemd/linger/{{ runner_user }}
+  register: runner_linger
+  failed_when: not runner_linger.stat.exists
+
+- name: Network rules and resource limits
+  ansible.builtin.import_tasks: isolation.yml
+  tags: [runner_isolation]
+
+- name: Package
+  ansible.builtin.import_tasks: packages.yml
+  tags: [runner_packages]
+
+- name: Service
+  ansible.builtin.import_tasks: service.yml
+  tags: [runner_service]

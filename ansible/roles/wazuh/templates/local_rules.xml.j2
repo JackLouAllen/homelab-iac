@@ -9,8 +9,8 @@
   -->
   <rule id="100100" level="10">
     <if_sid>40700</if_sid>
-    <regex type="pcre2">(?:restic-(?:backup|maintenance)@\S+|keycloak-dump|keycloak-db|keycloak|gitlab-backup|gitlab-runsvdir|gitlab-health|gitlab-audit|certbot-renew)\.service: Failed with result</regex>
-    <description>Backup, Keycloak, GitLab or certificate failure: a restic, Keycloak, GitLab or certificate-renewal systemd unit failed.</description>
+    <regex type="pcre2">(?:restic-(?:backup|maintenance)@\S+|keycloak-dump|keycloak-db|keycloak|gitlab-backup|gitlab-runsvdir|gitlab-health|gitlab-audit|gitlab-runner|runner-egress|certbot-renew)\.service: Failed with result</regex>
+    <description>Backup, Keycloak, GitLab, CI runner or certificate failure: a restic, Keycloak, GitLab, runner or certificate-renewal systemd unit failed.</description>
     <mitre>
       <id>T1490</id>
     </mitre>

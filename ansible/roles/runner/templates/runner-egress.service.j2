@@ -1,0 +1,20 @@
+# Managed by Ansible
+[Unit]
+Description=Network rules for the CI runner's jobs
+# Early and independent: this must be in place before the runner account's user manager (and so the runner) starts.
+# It needs nothing but the nft program, so it hangs off no other service: ordering it after something that is
+# itself ordered after multi-user.target would be a cycle (GitLab's audit service had that fault).
+DefaultDependencies=no
+After=local-fs.target
+Before=user@{{ runner_uid }}.service
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables/runner-egress.nft
+ExecStop=/usr/sbin/nft delete table inet runner_egress
+
+[Install]
+WantedBy=multi-user.target

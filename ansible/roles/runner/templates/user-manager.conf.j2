@@ -1,0 +1,4 @@
+# Managed by Ansible. The runner account's user manager starts only once its network rules are loaded.
+[Unit]
+Requires=runner-egress.service
+After=runner-egress.service

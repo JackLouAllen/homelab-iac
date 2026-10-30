@@ -1,0 +1,65 @@
+---
+- name: Import the GitLab runner signing keys
+  ansible.builtin.rpm_key:
+    key: "{{ item.url }}"
+    fingerprint: "{{ item.fingerprint }}"
+    state: present
+  loop:
+    - {url: "{{ runner_repo_key_url }}", fingerprint: "{{ runner_repo_key_fingerprint }}"}
+    - {url: "{{ runner_package_key_url }}", fingerprint: "{{ runner_package_key_fingerprint }}"}
+  loop_control:
+    label: "{{ item.fingerprint }}"
+
+# repo_gpgcheck verifies the metadata with the repository key as well as the packages.
+- name: Add the GitLab runner repository
+  ansible.builtin.yum_repository:
+    name: runner_gitlab-runner
+    description: GitLab Runner
+    baseurl: "{{ runner_repo_url }}"
+    gpgkey:
+      - "{{ runner_repo_key_url }}"
+      - "{{ runner_package_key_url }}"
+    gpgcheck: true
+    repo_gpgcheck: true
+    enabled: true
+  register: runner_repo
+
+- name: Install the versionlock plugin
+  ansible.builtin.dnf:
+    name: python3-dnf-plugin-versionlock
+    state: present
+
+- name: Read the installed runner version
+  ansible.builtin.command: rpm -q --qf '%{VERSION}-%{RELEASE}' gitlab-runner  # noqa: command-instead-of-module
+  register: runner_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Release the version hold before changing version
+  ansible.builtin.command: dnf versionlock delete gitlab-runner
+  when: runner_installed.rc == 0 and runner_installed.stdout != runner_version
+  changed_when: true
+
+# A dry run does not create the repository, so dnf would report the package as missing.
+- name: Install the runner at one pinned version
+  ansible.builtin.dnf:
+    name: gitlab-runner-{{ runner_version }}
+    state: present
+  when: not (ansible_check_mode and runner_repo is changed)
+
+- name: Hold the runner at that version
+  community.general.dnf_versionlock:
+    name: gitlab-runner
+    state: present
+  when: not (ansible_check_mode and runner_repo is changed)
+
+# The package installs a system-wide service that runs as root-owned config under its own account. The runner
+# here is the runner account's user service, so the packaged one must never run.
+- name: Keep the packaged system service from running
+  ansible.builtin.systemd_service:
+    name: gitlab-runner.service
+    enabled: false
+    masked: true
+    state: stopped
+  when: not (ansible_check_mode and runner_repo is changed)
