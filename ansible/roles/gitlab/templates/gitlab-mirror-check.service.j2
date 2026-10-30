@@ -1,0 +1,20 @@
+# Managed by Ansible
+[Unit]
+Description=Check that GitHub mirrors GitLab
+# Started by gitlab-mirror-check.timer only: no [Install] section and no ordering against GitLab's own unit.
+
+[Service]
+Type=oneshot
+{% for check in gitlab_mirror_checks %}
+ExecStart=/usr/bin/python3 -I {{ gitlab_mirror_check_script }} --grace {{ gitlab_mirror_grace }} {{ check.source }} {{ check.mirror }} {{ check.branch }}
+{% endfor %}
+# Public data only, nothing to write, nothing to keep
+DynamicUser=yes
+Environment=HOME=/tmp
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+MemoryMax=256M
+TimeoutStartSec=10min

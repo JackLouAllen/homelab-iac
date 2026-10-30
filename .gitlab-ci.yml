@@ -59,7 +59,7 @@ ansible-lint:
     - ansible-galaxy collection install -r requirements.yml
     - ansible-lint
 
-# The tests that need only Python: the GitLab audit converter and the runner's config template (which checks each
+# The tests that need only Python: the GitLab audit converter, the mirror check, and the runner's config template (which checks each
 # setting against the runner's own source, so it needs to reach gitlab.com).
 python-tests:
   stage: check
@@ -67,6 +67,7 @@ python-tests:
   script:
     - pip install jinja2==3.1.6 pyyaml==6.0.3
     - python3 -I scripts/test-gitlab-audit.py
+    - python3 -I scripts/test-gitlab-mirror-check.py --offline
     - python3 -I scripts/test-runner-config.py
     - python3 -I scripts/test-pipeline.py
 

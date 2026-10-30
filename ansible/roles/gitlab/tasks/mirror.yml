@@ -1,0 +1,44 @@
+---
+# ls-remote needs git, and nothing else here does
+- name: Install git
+  ansible.builtin.dnf:
+    name: git-core
+    state: present
+
+- name: Directory for the mirror check
+  ansible.builtin.file:
+    path: "{{ gitlab_mirror_check_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the mirror check
+  ansible.builtin.copy:
+    src: gitlab_mirror_check.py
+    dest: "{{ gitlab_mirror_check_script }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the check's service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - gitlab-mirror-check.service
+    - gitlab-mirror-check.timer
+  notify: Reload systemd for gitlab
+
+- name: Apply the unit files now
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the mirror check
+  ansible.builtin.systemd_service:
+    name: gitlab-mirror-check.timer
+    enabled: true
+    state: started
+  when: not ansible_check_mode

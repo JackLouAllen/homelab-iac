@@ -1,0 +1,11 @@
+# Managed by Ansible
+[Unit]
+Description=Check that GitHub mirrors GitLab, regularly
+
+[Timer]
+OnBootSec=15min
+OnUnitInactiveSec={{ gitlab_mirror_interval }}
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

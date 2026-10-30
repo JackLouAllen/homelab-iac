@@ -41,6 +41,17 @@ gitlab_audit_log: /var/log/gitlab-audit/audit.json
 # Where GitLab writes the logs the converter reads (application_json.log and the rest)
 gitlab_audit_source_dir: /var/log/gitlab/gitlab-rails
 
+# GitLab pushes these branches to GitHub (a push mirror, set up in the project's settings). Both repositories are
+# public, so the check needs no credentials: it compares the commit on each side and fails if they differ for longer
+# than the grace period. A failed check is a failed unit, which Wazuh alerts on.
+gitlab_mirror_checks:
+  - source: https://git.jacklouallen.info/jackl/homelab-iac.git
+    mirror: https://github.com/JackLouAllen/homelab-iac.git
+    branch: main
+gitlab_mirror_grace: 180
+gitlab_mirror_interval: 30min
+gitlab_mirror_check_script: /usr/local/lib/gitlab-mirror/gitlab_mirror_check.py
+
 # Directories bind-mounted from the data volume before anything is installed.
 gitlab_bind_dirs:
   - {src: /opt/gitlab, dest: "{{ gitlab_data_root }}/opt"}
