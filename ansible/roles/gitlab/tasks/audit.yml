@@ -1,0 +1,41 @@
+---
+- name: Directory for the audit converter
+  ansible.builtin.file:
+    path: "{{ gitlab_audit_script | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the audit converter
+  ansible.builtin.copy:
+    src: gitlab_audit.py
+    dest: "{{ gitlab_audit_script }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart the GitLab audit service
+
+- name: Install the audit service and its log rotation
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {src: gitlab-audit.service.j2, dest: /etc/systemd/system/gitlab-audit.service}
+    - {src: gitlab-audit.logrotate.j2, dest: /etc/logrotate.d/gitlab-audit}
+  notify:
+    - Reload systemd for gitlab
+    - Restart the GitLab audit service
+
+- name: Apply the unit file now
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the audit service
+  ansible.builtin.systemd_service:
+    name: gitlab-audit.service
+    enabled: true
+    state: started
+  when: not ansible_check_mode

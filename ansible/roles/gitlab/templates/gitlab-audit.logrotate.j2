@@ -1,0 +1,10 @@
+# Managed by Ansible
+{{ gitlab_audit_log }} {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notempty
+    copytruncate
+}

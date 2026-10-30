@@ -1,0 +1,35 @@
+# Managed by Ansible
+[Unit]
+Description=GitLab audit log for Wazuh
+After=gitlab-runsvdir.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I {{ gitlab_audit_script }} follow /var/log/gitlab {{ gitlab_audit_log }} /var/lib/gitlab-audit/offsets.json
+Restart=always
+RestartSec=5
+# Reads GitLab's logs, writes one file. Nothing else is writable or visible.
+StateDirectory=gitlab-audit
+LogsDirectory=gitlab-audit
+LogsDirectoryMode=0750
+UMask=0027
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+MemoryMax=128M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

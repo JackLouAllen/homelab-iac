@@ -9,7 +9,7 @@
   -->
   <rule id="100100" level="10">
     <if_sid>40700</if_sid>
-    <regex type="pcre2">(?:restic-(?:backup|maintenance)@\S+|keycloak-dump|keycloak-db|keycloak|gitlab-backup|gitlab-runsvdir|gitlab-health|certbot-renew)\.service: Failed with result</regex>
+    <regex type="pcre2">(?:restic-(?:backup|maintenance)@\S+|keycloak-dump|keycloak-db|keycloak|gitlab-backup|gitlab-runsvdir|gitlab-health|gitlab-audit|certbot-renew)\.service: Failed with result</regex>
     <description>Backup, Keycloak, GitLab or certificate failure: a restic, Keycloak, GitLab or certificate-renewal systemd unit failed.</description>
     <mitre>
       <id>T1490</id>
@@ -97,22 +97,21 @@
 <group name="local,gitlab,">
 
   <!--
-    GitLab writes one JSON object per line to /var/log/gitlab/gitlab-rails/ (application_json.log, auth.log,
-    api_json.log, production_json.log, exceptions_json.log); the Wazuh manager reads those files (wazuh_json_logs).
-    Every line carries a correlation_id, which is what ties these rules to GitLab and not to other JSON logs.
-    The patterns are written against real lines (scripts/gitlab-wazuh-samples.log) and are independent of field
-    order. GitLab CE audits only sign-ins, so token creation, visibility changes and user creation are caught from
-    the request logs instead.
+    GitLab's own logs are not read directly: each line carries dozens of fields of varying type, and the index
+    refuses an alert whose field type disagrees with the first value it saw that day (a date-like value in
+    data.params.value silently lost every token and visibility alert). gitlab-audit.service (gitlab role) writes
+    only the events below, as short flat strings, to /var/log/gitlab-audit/audit.json. Test lines are in
+    scripts/gitlab-audit-samples.log, made from real GitLab 19.5.3 log lines.
   -->
   <rule id="100400" level="0">
     <decoded_as>json</decoded_as>
-    <regex type="pcre2">"correlation_id":"[0-9A-Z]{26}"</regex>
-    <description>GitLab log line.</description>
+    <regex type="pcre2">"src":"gitlab","event":"</regex>
+    <description>GitLab audit event.</description>
   </rule>
 
   <rule id="100401" level="5">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">"message":"Failed Login: username=</regex>
+    <regex type="pcre2">"event":"login_failed"</regex>
     <description>GitLab: a sign-in failed.</description>
     <mitre>
       <id>T1110</id>
@@ -130,7 +129,7 @@
 
   <rule id="100403" level="4">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">"message":"Successful Login: </regex>
+    <regex type="pcre2">"event":"login_ok"</regex>
     <description>GitLab: someone signed in.</description>
     <mitre>
       <id>T1078</id>
@@ -139,7 +138,7 @@
 
   <rule id="100404" level="6">
     <if_sid>100403</if_sid>
-    <regex type="pcre2">"message":"Successful Login: [^"]*admin=true</regex>
+    <regex type="pcre2">"admin":"yes"</regex>
     <description>GitLab: an administrator signed in.</description>
     <mitre>
       <id>T1078</id>
@@ -149,7 +148,7 @@
   <!-- Rate limits GitLab applies itself; on the public door this is what a stranger hammering search looks like. -->
   <rule id="100405" level="5">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">"message":"Application_Rate_Limiter_Request"</regex>
+    <regex type="pcre2">"event":"rate_limited"</regex>
     <description>GitLab: a request hit one of its rate limits.</description>
     <mitre>
       <id>T1595</id>
@@ -164,10 +163,10 @@
     </mitre>
   </rule>
 
-  <!-- The change that exposes data: a project or group set to public, through the API or the web interface. -->
+  <!-- The change that exposes data: a project or group created or set public, through the API or the web interface. -->
   <rule id="100407" level="9">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">(?=.*"method":"(?:PUT|POST)")(?=.*"path":"/api/v4/(?:projects|groups)[^"]*")(?=.*"key":"visibility","value":"public")(?=.*"status":(?:200|201))</regex>
+    <regex type="pcre2">(?=.*"event":"made_public")(?=.*"via":"api")</regex>
     <description>GitLab: a project or group was made public (API).</description>
     <mitre>
       <id>T1567</id>
@@ -176,7 +175,7 @@
 
   <rule id="100408" level="9">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">(?=.*"controller":"(?:Projects|Groups)Controller")(?=.*"action":"update")(?=.*"visibility_level":"20")(?=.*"status":(?:200|302))</regex>
+    <regex type="pcre2">(?=.*"event":"made_public")(?=.*"via":"web")</regex>
     <description>GitLab: a project or group was made public (web interface).</description>
     <mitre>
       <id>T1567</id>
@@ -185,8 +184,8 @@
 
   <rule id="100409" level="7">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">(?=.*"controller":"UserSettings::PersonalAccessTokensController")(?=.*"action":"create")(?=.*"status":(?:200|201|302))</regex>
-    <description>GitLab: a personal access token was created (web interface).</description>
+    <regex type="pcre2">(?=.*"event":"token_created")(?=.*"via":"web")</regex>
+    <description>GitLab: an access token was created (web interface).</description>
     <mitre>
       <id>T1098</id>
     </mitre>
@@ -194,8 +193,8 @@
 
   <rule id="100410" level="7">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">(?=.*"method":"POST")(?=.*"path":"/api/v4/users?/(?:\d+/)?personal_access_tokens")(?=.*"status":201)</regex>
-    <description>GitLab: a personal access token was created (API).</description>
+    <regex type="pcre2">(?=.*"event":"token_created")(?=.*"via":"api")</regex>
+    <description>GitLab: an access token was created (API).</description>
     <mitre>
       <id>T1098</id>
     </mitre>
@@ -203,18 +202,16 @@
 
   <rule id="100411" level="7">
     <if_sid>100400</if_sid>
-    <regex type="pcre2">(?=.*"method":"POST")(?=.*"path":"/api/v4/users")(?=.*"status":201)</regex>
-    <description>GitLab: a user account was created (API).</description>
+    <regex type="pcre2">"event":"user_created"</regex>
+    <description>GitLab: a user account was created.</description>
     <mitre>
       <id>T1136</id>
     </mitre>
   </rule>
 
-  <!-- Not under 100400: an exception raised outside a web request (a background job, a console command) has no
-       correlation_id. -->
   <rule id="100412" level="6">
-    <decoded_as>json</decoded_as>
-    <regex type="pcre2">"exception\.class":"</regex>
+    <if_sid>100400</if_sid>
+    <regex type="pcre2">"event":"exception"</regex>
     <description>GitLab raised an exception.</description>
   </rule>
 

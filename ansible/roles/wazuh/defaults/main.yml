@@ -91,12 +91,9 @@ wazuh_dashboard_session_minutes: 15
 # Extra JSON log files the manager reads (one object per line). CrowdSec writes its alerts here.
 wazuh_json_logs:
   - /var/log/crowdsec/alerts.json
-  # GitLab (see rules 1004xx): sign-ins, rate limits, requests that change things, exceptions
-  - /var/log/gitlab/gitlab-rails/application_json.log
-  - /var/log/gitlab/gitlab-rails/auth.log
-  - /var/log/gitlab/gitlab-rails/api_json.log
-  - /var/log/gitlab/gitlab-rails/production_json.log
-  - /var/log/gitlab/gitlab-rails/exceptions_json.log
+  # GitLab's flat audit events (rules 1004xx), written by gitlab-audit.service in the gitlab role. Not GitLab's own
+  # logs: see the comment at rule 100400.
+  - /var/log/gitlab-audit/audit.json
 
 # How long the manager waits for the tailnet address at boot. The unit's own start limit is 45 s,
 # so the drop-in raises it.

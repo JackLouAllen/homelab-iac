@@ -37,3 +37,7 @@
 - name: Readiness check
   ansible.builtin.import_tasks: health.yml
   tags: [gitlab_health]
+
+- name: Audit log for Wazuh
+  ansible.builtin.import_tasks: audit.yml
+  tags: [gitlab_audit]

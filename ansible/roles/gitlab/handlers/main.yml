@@ -11,3 +11,9 @@
     GITLAB_ROOT_PASSWORD: "{{ gitlab_root_password }}"
   changed_when: true
   no_log: true
+
+- name: Restart the GitLab audit service
+  ansible.builtin.systemd_service:
+    name: gitlab-audit.service
+    state: restarted
+  when: not ansible_check_mode

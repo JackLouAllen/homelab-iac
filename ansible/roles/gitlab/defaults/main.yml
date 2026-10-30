@@ -35,6 +35,10 @@ gitlab_backup_memory_max: 3G
 gitlab_health_interval: 3min
 gitlab_health_retries: 3
 
+# The flat audit log Wazuh reads (gitlab_audit.py). The path is also listed in wazuh_json_logs in the wazuh role.
+gitlab_audit_script: /usr/local/lib/gitlab-audit/gitlab_audit.py
+gitlab_audit_log: /var/log/gitlab-audit/audit.json
+
 # Directories bind-mounted from the data volume before anything is installed.
 gitlab_bind_dirs:
   - {src: /opt/gitlab, dest: "{{ gitlab_data_root }}/opt"}
