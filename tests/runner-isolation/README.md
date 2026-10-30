@@ -31,15 +31,19 @@ A refused job that **passes** is a hole: the runner ran something it should have
 
 ## The CPU stress job
 
-Four busy loops for a minute on a runner capped at two CPUs. Start it by hand and, while it runs, from another
-machine check that the rest of the stack does not notice:
+Four busy loops for a minute on a runner capped at two CPUs. The cap is proved by measurement, not by the job
+passing: on oci1, start `watch-cpu.sh` (it needs no sudo), then start the manual `stress-cpu` job in GitLab.
 
 ```bash
-while sleep 2; do curl -s -o /dev/null -w '%{time_total}s %{http_code}\n' https://git.jacklouallen.info/-/readiness; done
+scp tests/runner-isolation/watch-cpu.sh oci1: && ssh -t oci1 ./watch-cpu.sh
 ```
 
-(over the tailnet; readiness answers on the private door only). Latency should stay close to normal and the status 200.
-On oci1, `systemctl status user-2003.slice` shows the account's CPU and memory use against the caps.
+The first column is the number of CPUs the runner account is using, from its slice's CPU time and the clock: it must
+sit at or just under **2.0** while the loops run, and go back near 0 afterwards. The second column is how fast GitLab
+answers on loopback: it must stay close to its normal time (tens of milliseconds) with status 200.
+
+(Do not measure from outside the host: the public door refuses `/-/readiness` and answers 404 from nginx alone, which
+says nothing about GitLab under load.)
 
 ## When a "must hold" job fails
 
