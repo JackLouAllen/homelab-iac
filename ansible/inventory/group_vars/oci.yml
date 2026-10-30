@@ -27,6 +27,10 @@ edge_extra_certs:
 # Keycloak's published loopback port (keycloak_published_port in the keycloak role).
 edge_keycloak_upstream: 127.0.0.1:8180
 
+# GitLab's public, read-only door (profile gitlab_readonly in the edge role). Empty keeps the public name a 503;
+# setting it opens the door. GitLab's workhorse listens here (gitlab_workhorse_listen in the gitlab role).
+edge_gitlab_upstream: 127.0.0.1:8181
+
 # Private (tailnet) names. The dashboard speaks TLS on loopback with the Wazuh local CA, which
 # nginx verifies.
 edge_private_sites:
