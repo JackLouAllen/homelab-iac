@@ -1,0 +1,185 @@
+# Isolation test for the CI runner (docs/GITLAB_RUNNER_DESIGN.md). Each job tries what a hostile job would try.
+#
+# How to run: push this file as `.gitlab-ci.yml` on a scratch branch of a project the runner serves, nothing else on
+# the branch (see tests/runner-isolation/README.md). Read the result:
+#   - every "must hold" job (stage `hold`) must PASS: it asserts a limit and fails if the limit is not there
+#   - every "must be refused" job (stage `refused`) must FAIL with the runner's own refusal in the log; they are
+#     allow_failure, so the pipeline shows "passed with warnings" and the warnings are the point
+#   - the two stress jobs are measured from outside: see the README
+#
+# The images are pinned loosely on purpose, to keep the test readable; the real pipeline pins by digest.
+
+stages: [hold, refused, stress]
+
+default:
+  image: registry.access.redhat.com/ubi10/ubi-minimal:latest
+  before_script:
+    - |
+      # reach HOST PORT: succeeds if a TCP connection opens within 4 seconds
+      reach() { timeout 4 bash -c "exec 3<>/dev/tcp/$1/$2" 2> /dev/null; }
+      must_reach() { if reach "$1" "$2"; then echo "ok    can reach $1:$2 ($3)"; else echo "FAIL  cannot reach $1:$2 ($3)"; exit 1; fi; }
+      must_not_reach() { if reach "$1" "$2"; then echo "FAIL  reached $1:$2 ($3)"; exit 1; else echo "ok    cannot reach $1:$2 ($3)"; fi; }
+      gateway() { while read -r iface dest gw _; do [ "$dest" = 00000000 ] && { printf '%d.%d.%d.%d\n' "0x${gw:6:2}" "0x${gw:4:2}" "0x${gw:2:2}" "0x${gw:0:2}"; return; }; done < /proc/net/route; }
+
+variables:
+  # Addresses of this host as the runner sees them (not secrets: they are already in the repository's inventory)
+  GIT_DOOR: 100.73.97.17
+  HOST_VCN: 10.10.1.216
+  # What the role configures (runner_job_memory, runner_pids_limit, runner_job_cpus); a job may not exceed these
+  EXPECT_MEMORY_MAX: "3221225472"
+  EXPECT_PIDS_MAX: "512"
+  EXPECT_CPU_QUOTA_US: "200000"
+
+# --- must hold --------------------------------------------------------------------------------------------------
+
+sanity:
+  stage: hold
+  script:
+    - id
+    - cat /etc/os-release | head -2
+    - echo "this job ran on the runner"
+
+user-namespace:
+  stage: hold
+  script:
+    - cat /proc/self/uid_map
+    - |
+      # Root in the container must not be root on the host: the second column is the host ID it maps to
+      read -r inside host count < /proc/self/uid_map
+      [ "$host" != 0 ] && echo "ok    container root is host user $host" || { echo "FAIL  container root is host root"; exit 1; }
+
+capabilities:
+  stage: hold
+  script:
+    - |
+      cap=$(grep CapEff /proc/self/status | cut -f2)
+      [ -n "$cap" ] || { echo "FAIL  cannot read the capability set"; exit 1; }
+      echo "effective capabilities: $cap"
+      # CAP_SYS_ADMIN is bit 21 (0x200000): a privileged container has it
+      if [ $(( 0x$cap & 0x200000 )) -ne 0 ]; then echo "FAIL  CAP_SYS_ADMIN present"; exit 1; fi
+      echo "ok    no CAP_SYS_ADMIN"
+      grep -q 'NoNewPrivs:\s*1' /proc/self/status && echo "ok    no-new-privileges is on" || { echo "FAIL  no-new-privileges is off"; exit 1; }
+
+no-host-sockets:
+  stage: hold
+  script:
+    - |
+      # The image has empty /srv, /run/user and the like, so existence proves nothing: a host socket where one would
+      # sit, or a directory with the host's content in it, is what must be absent.
+      for p in /var/run/docker.sock /run/docker.sock /run/podman/podman.sock /run/user/2003/podman/podman.sock; do
+        if [ -S "$p" ]; then echo "FAIL  the socket $p is visible"; exit 1; fi
+      done
+      for p in /srv /srv/gitlab /srv/containers /etc/gitlab-runner /run/user /var/lib/containers /home; do
+        if [ -d "$p" ] && [ -n "$(ls -A "$p" 2> /dev/null)" ]; then echo "FAIL  $p has content: $(ls -A "$p" | head -3 | tr '\n' ' ')"; exit 1; fi
+      done
+      echo "ok    none of the host's sockets or data directories are visible"
+
+network-allowed:
+  stage: hold
+  script:
+    - getent hosts registry.access.redhat.com | head -1 || true
+    - must_reach registry.access.redhat.com 443 "the internet"
+    - getent hosts git.jacklouallen.info || true
+    - must_reach git.jacklouallen.info 443 "GitLab's private door, by name"
+    - must_reach "$GIT_DOOR" 443 "GitLab's private door, by address"
+
+network-blocked:
+  stage: hold
+  script:
+    - must_not_reach 169.254.169.254 80 "the instance metadata service"
+    - must_not_reach 169.254.169.254 53 "the metadata address, even its DNS port"
+    - must_not_reach "$GIT_DOOR" 22 "SSH on this host's tailnet address"
+    - must_not_reach "$GIT_DOOR" 8181 "GitLab's own port on the tailnet address"
+    - must_not_reach 100.100.100.100 80 "the tailnet resolver's other ports"
+    - must_not_reach "$HOST_VCN" 22 "this host's VCN address"
+    - must_not_reach "$HOST_VCN" 8181 "GitLab through the VCN address"
+    - must_not_reach 10.10.1.1 80 "the VCN gateway"
+    - must_not_reach 192.168.1.1 80 "a typical home router"
+    - |
+      gw=$(gateway)
+      echo "the container's gateway is $gw"
+      for port in 22 8080 8181 9200 5601 8008; do must_not_reach "$gw" "$port" "the host through the container's gateway address"; done
+    - |
+      for name in host.containers.internal host.docker.internal; do
+        for port in 22 8181 9200; do must_not_reach "$name" "$port" "$name (resolved or not, it must not connect)"; done
+      done
+
+limits-are-set:
+  stage: hold
+  script:
+    - |
+      # cgroup v2: the container's own limits, compared with what the role configures. A missing or unlimited value
+      # fails; so does a number above the expected one (Docker and Podman report a large default when nothing is set).
+      number() { case "$1" in ''|max) return 1 ;; *[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+      mem=$(cat /sys/fs/cgroup/memory.max 2> /dev/null || true)
+      pids=$(cat /sys/fs/cgroup/pids.max 2> /dev/null || true)
+      read -r cpu period < /sys/fs/cgroup/cpu.max || true
+      echo "memory.max=$mem pids.max=$pids cpu.max=$cpu $period"
+      number "$mem" && [ "$mem" -le "$EXPECT_MEMORY_MAX" ] && echo "ok    memory limit $mem <= $EXPECT_MEMORY_MAX" || { echo "FAIL  memory limit missing or too high"; exit 1; }
+      number "$pids" && [ "$pids" -le "$EXPECT_PIDS_MAX" ] && echo "ok    process limit $pids <= $EXPECT_PIDS_MAX" || { echo "FAIL  process limit missing or too high"; exit 1; }
+      number "$cpu" && [ "$cpu" -le "$EXPECT_CPU_QUOTA_US" ] && echo "ok    CPU quota $cpu <= $EXPECT_CPU_QUOTA_US" || { echo "FAIL  CPU quota missing or too high"; exit 1; }
+
+fork-bomb:
+  stage: hold
+  timeout: 5m
+  script:
+    - |
+      # Start a thousand processes from a child shell. When the kernel refuses a fork bash retries for about half a
+      # minute and then gives up, ending the child; the parent job then counts what is alive.
+      limit=$(cat /sys/fs/cgroup/pids.max)
+      ( for i in $(seq 1 1000); do sleep 120 & done; wait ) > /dev/null 2>&1 && flood=survived || flood=stopped
+      # Builtins only from here: the limit is full, so nothing new can be started (not even ls). The sleepers die with
+      # the container when the job ends.
+      set -- /proc/[0-9]*
+      alive=$#
+      echo "the flood was $flood; processes alive: $alive; limit: $limit"
+      [ "$flood" = stopped ] || { echo "FAIL  a thousand processes started"; exit 1; }
+      [ "$alive" -le "$limit" ] && [ "$alive" -gt 50 ] && echo "ok    the kernel held it at the limit" || { echo "FAIL  unexpected process count"; exit 1; }
+
+memory-bomb:
+  stage: hold
+  script:
+    - |
+      # Eat memory until the limit kills it. The job must survive to say so; the host must not notice.
+      ( tail /dev/zero ) && status=0 || status=$?
+      echo "the memory hog ended with status $status"
+      [ "$status" -ne 0 ] && echo "ok    the memory limit killed it" || { echo "FAIL  it was not stopped"; exit 1; }
+
+# --- must be refused --------------------------------------------------------------------------------------------
+
+refused-unqualified-image:
+  stage: refused
+  image: alpine:3
+  allow_failure: true
+  script: [echo "FAIL  an unqualified image name ran"]
+
+refused-unlisted-registry:
+  stage: refused
+  image: registry.example.org/anything/at-all:1
+  allow_failure: true
+  script: [echo "FAIL  an image from a registry not on the list ran"]
+
+refused-pull-always:
+  stage: refused
+  image: {name: "registry.access.redhat.com/ubi10/ubi-minimal:latest", pull_policy: always}
+  allow_failure: true
+  script: [echo "FAIL  a job chose its own pull policy"]
+
+refused-service:
+  stage: refused
+  services: [{name: "docker.io/library/docker:dind"}]
+  allow_failure: true
+  script: [echo "FAIL  a service container ran"]
+
+# --- measured from outside --------------------------------------------------------------------------------------
+
+stress-cpu:
+  stage: stress
+  when: manual
+  allow_failure: true
+  script:
+    - |
+      # Four busy loops for a minute, on a runner capped at two CPUs. While it runs, GitLab must stay responsive.
+      for i in 1 2 3 4; do ( timeout 60 sh -c 'while :; do :; done' ) & done
+      wait
+      echo "done"
