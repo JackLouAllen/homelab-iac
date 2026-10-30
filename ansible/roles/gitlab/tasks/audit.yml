@@ -16,6 +16,20 @@
     mode: "0644"
   notify: Restart the GitLab audit service
 
+# The file must exist before Wazuh starts, or its log collector gives up on the path (seen on the first run). The
+# service itself creates it too (LogsDirectory), but only once it has started.
+- name: Create the audit log directory and file at boot
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible
+      d {{ gitlab_audit_log | dirname }} 0750 root root -
+      f {{ gitlab_audit_log }} 0640 root root -
+    dest: /etc/tmpfiles.d/gitlab-audit.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Create the audit log directory
+
 - name: Install the audit service and its log rotation
   ansible.builtin.template:
     src: "{{ item.src }}"

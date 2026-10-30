@@ -17,3 +17,7 @@
     name: gitlab-audit.service
     state: restarted
   when: not ansible_check_mode
+
+- name: Create the audit log directory
+  ansible.builtin.command: systemd-tmpfiles --create /etc/tmpfiles.d/gitlab-audit.conf
+  changed_when: true
