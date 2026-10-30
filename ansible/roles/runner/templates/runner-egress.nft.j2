@@ -1,0 +1,28 @@
+# Managed by Ansible. What a CI job may reach: it is untrusted code. Matched on the runner account's user ID, so
+# nothing else on the host is affected, whatever happens here. Loaded by runner-egress.service.
+table inet runner_egress
+delete table inet runner_egress
+
+table inet runner_egress {
+    chain output {
+        type filter hook output priority filter; policy accept;
+
+        meta skuid != {{ runner_uid }} accept
+        ct state established,related accept
+
+        # Name resolution, through the listed resolvers only
+{% for server in runner_dns_servers %}
+        ip daddr {{ server }} meta l4proto { tcp, udp } th dport 53 accept
+{% endfor %}
+
+        # The private door of GitLab on this host (clone, report back), nothing else on the tailnet address
+        ip daddr {{ runner_gitlab_address }} tcp dport 443 accept
+
+        # Everything private or special: loopback services (GitLab, Keycloak, Wazuh, CrowdSec), the rest of the
+        # tailnet (the laptop and desktop live there), the VCN, link-local (the instance metadata service
+        # 169.254.169.254 hands out instance credentials), multicast. A few attempts are logged for Wazuh.
+        ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/3 } limit rate 6/minute log prefix "runner-egress-drop: " counter drop
+        ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/3 } counter drop
+        ip6 daddr { ::/128, ::1/128, ::ffff:0:0/96, fc00::/7, fe80::/10, ff00::/8 } counter drop
+    }
+}

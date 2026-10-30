@@ -1,0 +1,27 @@
+---
+# The CI runner: GitLab Runner's Docker executor against the runner account's own rootless Podman socket.
+# Design and reasoning: docs/GITLAB_RUNNER_DESIGN.md (local notes).
+
+# The account is created by the podman_host role (podman_host_service_users).
+runner_user: runner
+runner_uid: 2003
+runner_home: /srv/containers/runner
+runner_xdg_runtime_dir: /run/user/{{ runner_uid }}
+
+# What the jobs' network traffic is held to (nftables, matched on the runner's user ID: rootless container traffic
+# leaves through processes owned by that user).
+# oci1's own tailnet address: the private door, the only tailnet address a job may reach (443 only).
+runner_gitlab_address: "{{ ansible_facts['tailscale0']['ipv4']['address'] | default('') }}"
+# Resolvers jobs may ask (port 53 only). On OCI the VCN resolver shares 169.254.169.254 with the instance metadata
+# service, so that address is blocked for everything except DNS.
+runner_dns_servers:
+  - 169.254.169.254
+
+# Package. The minor version follows GitLab's (gitlab_version in the gitlab role).
+runner_version: 19.5.2-1
+runner_repo_url: https://packages.gitlab.com/runner/gitlab-runner/el/10/$basearch
+runner_repo_key_url: https://packages.gitlab.com/gpgkey/gpg.key
+runner_repo_key_fingerprint: F6403F6544A38863DAA0B6E03F01618A51312F3F  # gitleaks:allow (public signing-key fingerprint)
+# The older "GitLab, Inc." runner key (4C80FB51394521E9) expired in 2023 and is not imported.
+runner_package_key_url: https://packages.gitlab.com/gpgkey/runner/49F16C5CC3A0F81F.pub.gpg
+runner_package_key_fingerprint: 931DA69CFA3AFEBBC97DAA8C6C57C29C6BA75A4E  # gitleaks:allow (public signing-key fingerprint)
