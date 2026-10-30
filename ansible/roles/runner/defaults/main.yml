@@ -50,6 +50,10 @@ runner_allowed_images:
   - quay.io/*
   - registry.access.redhat.com/*
   - docker.io/library/*
+# Services (extra containers next to a job) are not used. The runner treats an EMPTY allow-list as "everything
+# allowed" (the first isolation test ran docker:dind that way), so "none" is a pattern that matches no image name.
+runner_allowed_services:
+  - denied.invalid/*
 runner_job_memory: 3g
 runner_job_cpus: "2"
 runner_job_shm: 268435456

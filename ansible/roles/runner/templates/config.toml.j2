@@ -28,4 +28,4 @@ shutdown_timeout = 60
     pull_policy = ["if-not-present"]
     allowed_pull_policies = ["if-not-present"]
     allowed_images = [{% for image in runner_allowed_images %}"{{ image }}"{{ ", " if not loop.last }}{% endfor %}]
-    allowed_services = []
+    allowed_services = [{% for image in runner_allowed_services %}"{{ image }}"{{ ", " if not loop.last }}{% endfor %}]

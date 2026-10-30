@@ -69,7 +69,10 @@ check("memory cap, and swap equal to it (so no swap)", d["memory"] == d["memory_
 check("CPU cap", float(d["cpus"]) > 0)
 check("no new privileges", "no-new-privileges" in d["security_opt"])
 check("images only from fully qualified registries", all("/" in p and "." in p.split("/")[0] for p in d["allowed_images"]))
-check("no services allowed", d["allowed_services"] == [])
+# The runner treats an empty allow-list as "everything allowed": none of them may be empty
+for name in ("allowed_images", "allowed_services", "allowed_pull_policies"):
+    check(f"{name} is never empty (empty would mean everything)", len(d[name]) > 0)
+check("no service image can match", all(p.startswith("denied.invalid/") for p in d["allowed_services"]))
 check("pull policy fixed to if-not-present", d["pull_policy"] == ["if-not-present"] == d["allowed_pull_policies"])
 check("runner socket is the account's own", d["host"] == "unix:///run/user/2003/podman/podman.sock")
 check("jobs find GitLab at the address the firewall allows", d["extra_hosts"] == ["git.jacklouallen.info:100.73.97.17"])
