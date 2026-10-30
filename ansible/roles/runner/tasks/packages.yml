@@ -54,12 +54,38 @@
     state: present
   when: not (ansible_check_mode and runner_repo is changed)
 
-# The package installs a system-wide service that runs as root-owned config under its own account. The runner
-# here is the runner account's user service, so the packaged one must never run.
-- name: Keep the packaged system service from running
+# The package's post-install script runs "gitlab-runner uninstall", "install" and "start" on every install and
+# upgrade, which leaves a real unit file at /etc/systemd/system/gitlab-runner.service and a packaged system service
+# running under the gitlab-runner account (idle: its config is empty). The runner here is the runner account's own
+# user service, so the packaged one must never run. systemd masks a unit only over a symlink, not over a real file,
+# so the file goes first. After a later upgrade the next run of this role puts it right again.
+- name: Look at the packaged service file
+  ansible.builtin.stat:
+    path: /etc/systemd/system/gitlab-runner.service
+  register: runner_packaged_unit
+
+- name: Stop and disable the packaged system service
   ansible.builtin.systemd_service:
     name: gitlab-runner.service
     enabled: false
-    masked: true
     state: stopped
+  when: runner_packaged_unit.stat.exists and not runner_packaged_unit.stat.islnk
+
+- name: Remove the packaged unit file so that the service can be masked
+  ansible.builtin.file:
+    path: /etc/systemd/system/gitlab-runner.service
+    state: absent
+  when: runner_packaged_unit.stat.exists and not runner_packaged_unit.stat.islnk
+
+- name: Mask the packaged system service
+  ansible.builtin.systemd_service:
+    name: gitlab-runner.service
+    masked: true
+    daemon_reload: true
+
+# The package creates this account with a login shell; nothing here ever logs in as it.
+- name: Take the shell from the account the package creates
+  ansible.builtin.user:
+    name: gitlab-runner
+    shell: /sbin/nologin
   when: not (ansible_check_mode and runner_repo is changed)
