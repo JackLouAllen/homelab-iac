@@ -12,10 +12,14 @@ runner_xdg_runtime_dir: /run/user/{{ runner_uid }}
 # leaves through processes owned by that user).
 # oci1's own tailnet address: the private door, the only tailnet address a job may reach (443 only).
 runner_gitlab_address: "{{ ansible_facts['tailscale0']['ipv4']['address'] | default('') }}"
-# Resolvers jobs may ask (port 53 only). On OCI the VCN resolver shares 169.254.169.254 with the instance metadata
-# service, so that address is blocked for everything except DNS.
+# Resolvers jobs may ask (port 53 only). oci1 resolves through Tailscale's MagicDNS (see /etc/resolv.conf), so
+# those are the addresses, IPv4 and IPv6. The instance metadata service (169.254.169.254, which on OCI is also the
+# VCN resolver) is not allowed at all. A job can therefore ask MagicDNS for tailnet names, but every connection to
+# those devices stays blocked.
 runner_dns_servers:
-  - 169.254.169.254
+  - 100.100.100.100
+runner_dns_servers6:
+  - fd7a:115c:a1e0::53
 
 # Package. The minor version follows GitLab's (gitlab_version in the gitlab role).
 runner_version: 19.5.2-1
