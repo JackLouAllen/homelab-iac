@@ -31,7 +31,8 @@ check "POST is refused" 405 "$(status -X POST "https://$host/explore")"
 check "tokens in the URL are refused" 404 "$(status "https://$host/api/v4/projects/1/repository/branches?private_token=x")"
 check "GraphQL answers" 200 "$(status -X POST -H 'Content-Type: application/json' -d '{"query":"{ metadata { version } }"}' "https://$host/api/graphql")"
 if [ -n "$project" ]; then
-    check "the public project page loads" 200 "$(status "https://$host/$project")"
+    # -L: GitLab redirects a path written in the wrong case to the canonical one, as it would for a browser
+    check "the public project page loads" 200 "$(status -L "https://$host/$project")"
     git -c http.curloptResolve="$host:443:$ip" ls-remote "https://$host/$project.git" > /dev/null 2>&1 && r=works || r=failed
     check "git ls-remote of the public project" works "$r"
     check "a made-up private project is not found" 302 "$(status "https://$host/$project-does-not-exist")"
