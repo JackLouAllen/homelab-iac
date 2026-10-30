@@ -2,6 +2,11 @@
 # Render the edge role's nginx.conf with upstreams set and exercise it in a throwaway nginx
 # container: the auth allow-list, the master-realm block, the rate limit and the private name.
 # Needs docker, openssl, python3 with jinja2 and yaml. Nothing touches a real host.
+#
+#   scripts/test-edge-nginx.sh           starts the throwaway nginx container itself (needs docker)
+#   scripts/test-edge-nginx.sh --here    for a CI job whose own container is the nginx image: installs the files
+#                                        into /etc/nginx and runs the same checks there. Needs python3 with jinja2
+#                                        and yaml, openssl and curl in that container. Do not run it on a real host.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -50,6 +55,14 @@ http {
 U
 
 cp "$repo/scripts/test-edge-nginx-checks.sh" "$work/checks.sh"
+if [ "${1:-}" = "--here" ]; then
+    [ -x /usr/sbin/nginx ] || { echo "--here needs to run inside an nginx container" >&2; exit 2; }
+    cp "$work/nginx.conf" /etc/nginx/nginx.conf
+    cp "$work/security-headers.conf" /etc/nginx/security-headers.conf
+    mkdir -p /etc/letsencrypt/live && cp -r "$work/le/." /etc/letsencrypt/live/
+    nginx -t && nginx -c "$work/upstream.conf" && (nginx -g "daemon off;" 2> /dev/null &) && sleep 1 && bash "$work/checks.sh"
+    exit
+fi
 docker run --rm \
     -v "$work/nginx.conf:/etc/nginx/nginx.conf:ro" \
     -v "$work/security-headers.conf:/etc/nginx/security-headers.conf:ro" \

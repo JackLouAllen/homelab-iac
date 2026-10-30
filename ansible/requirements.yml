@@ -1,5 +1,7 @@
 ---
+# Pinned to the versions the playbooks are run with. The pipeline installs exactly these, so a collection release
+# cannot change its result; bump them on purpose, then run ansible-lint and the playbooks in --check mode.
 collections:
-  - name: ansible.posix
-  - name: community.general
-  - name: community.crypto
+  - {name: ansible.posix, version: 2.2.2}
+  - {name: community.crypto, version: 3.5.0}
+  - {name: community.general, version: 13.5.0}

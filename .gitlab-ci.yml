@@ -1,0 +1,94 @@
+# Checks that run on every push. Each job starts from a clean container, installs only what it needs, and pins the
+# image by digest and every tool by version, so a result changes when this repository does and not when the world does.
+# Run by the CI runner on oci1 (ansible/roles/runner): rootless, no secrets, nothing deploys from here.
+#
+# Images are multi-architecture indexes (oci1 is aarch64). To bump one: look up the new digest with
+#   docker buildx imagetools inspect IMAGE:TAG --raw | sha256sum
+# change it here, and let this pipeline run on a branch first. scripts/test-pipeline.py checks the pins.
+
+stages: [check]
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+default:
+  interruptible: true
+  timeout: 15m
+
+variables:
+  PIP_NO_CACHE_DIR: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_ROOT_USER_ACTION: ignore
+  DEBIAN_FRONTEND: noninteractive
+
+.python:
+  image: docker.io/library/python:3.13-slim@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb
+
+.nginx:
+  image: docker.io/library/nginx:stable@sha256:51047bea59fed88fbd1f52565d2f5fabcb82d311cf6c9e507a10ce74bb3bc3f0
+
+# Secrets in the whole history, with the same tool and version as the pre-commit hook.
+secrets-scan:
+  stage: check
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.24.0@sha256:2bcceac45179b3a91bff11a824d0fb952585b429e54fc928728b1d4d5c3e5176
+    entrypoint: [""]
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - gitleaks git --redact --no-banner --verbose .
+
+# Password hashes in any tracked text file; the pattern is read from .pre-commit-config.yaml.
+password-hashes:
+  stage: check
+  extends: .python
+  script:
+    - pip install pyyaml==6.0.3
+    - python3 -I scripts/check-password-hashes.py
+
+# The production profile, over every role and playbook.
+ansible-lint:
+  stage: check
+  extends: .python
+  script:
+    - apt-get update -qq && apt-get install -y -qq git
+    - pip install ansible-core==2.21.5 ansible-lint==26.10.1
+    - cd ansible
+    - ansible-galaxy collection install -r requirements.yml
+    - ansible-lint
+
+# The tests that need only Python: the GitLab audit converter and the runner's config template (which checks each
+# setting against the runner's own source, so it needs to reach gitlab.com).
+python-tests:
+  stage: check
+  extends: .python
+  script:
+    - pip install jinja2==3.1.6 pyyaml==6.0.3
+    - python3 -I scripts/test-gitlab-audit.py
+    - python3 -I scripts/test-runner-config.py
+    - python3 -I scripts/test-pipeline.py
+
+# The edge nginx configuration, rendered from the role and exercised for real: the allow-lists, the master-realm
+# block, the rate limit and the private names.
+nginx-config:
+  stage: check
+  extends: .nginx
+  script:
+    - apt-get update -qq && apt-get install -y -qq python3 python3-jinja2 python3-yaml openssl curl
+    - bash scripts/test-edge-nginx.sh --here
+
+# Each OpenTofu module must be valid. No state, no credentials: the backend is switched off.
+tofu-validate:
+  stage: check
+  image:
+    name: ghcr.io/opentofu/opentofu:1.13.1@sha256:1df996fca13806a20d5a3d3ad54acdcf76bcb1aa4ac30b5ba169b9e4cecdbcc8
+    entrypoint: [""]
+  parallel:
+    matrix:
+      - MODULE: [oci, cloudflare, keycloak]
+  script:
+    - cd tofu/$MODULE
+    - tofu init -backend=false -input=false
+    - tofu validate
