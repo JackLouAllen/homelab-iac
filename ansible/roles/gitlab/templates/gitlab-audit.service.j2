@@ -1,7 +1,10 @@
 # Managed by Ansible
 [Unit]
 Description=GitLab audit log for Wazuh
-After=gitlab-runsvdir.service
+# Not After=gitlab-runsvdir.service: that unit is ordered after multi-user.target, where this one is wanted, so
+# the two wait on each other and systemd deletes this one's start job (seen on the first reboot). The logs live on
+# the data volume and exist before GitLab starts; the converter exits with an error if they do not.
+RequiresMountsFor={{ gitlab_audit_source_dir }}
 
 [Service]
 Type=simple

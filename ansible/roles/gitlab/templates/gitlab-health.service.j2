@@ -8,5 +8,8 @@ Type=oneshot
 # GitLab restarts its own services under runit, so systemd sees a healthy unit while Puma crash-loops. Readiness
 # answers 200 only when the web, database and Redis parts all respond. A failure here is a failed unit, which Wazuh
 # already alerts on. The retries ride out a Puma restart and the minute after a package upgrade.
+# The audit service can be missing without any failed unit (a start job deleted at boot is not a failure), so
+# the check looks at it as well.
+ExecStart=/usr/bin/systemctl is-active --quiet gitlab-audit.service
 ExecStart=/usr/bin/curl --fail --silent --show-error --output /dev/null --max-time 20 \
     --retry {{ gitlab_health_retries }} --retry-delay 15 --retry-all-errors http://{{ gitlab_workhorse_listen }}/-/readiness

@@ -210,6 +210,20 @@ class Startup(unittest.TestCase):
         self.assertIn("follow {{ gitlab_audit_source_dir }}", unit)
 
 
+class Units(unittest.TestCase):
+    def test_audit_service_cannot_deadlock_with_gitlabs_own_unit(self):
+        # gitlab-runsvdir.service is ordered after multi-user.target; a unit wanted by multi-user.target that is
+        # ordered after it creates a cycle and systemd deletes the start job, silently (first reboot, 2026-10-30)
+        unit = (HERE.parent / "ansible/roles/gitlab/templates/gitlab-audit.service.j2").read_text()
+        wanted_by_target = "WantedBy=multi-user.target" in unit
+        ordered_after_gitlab = any(l.startswith(("After=", "Requires=")) and "gitlab-runsvdir" in l for l in unit.splitlines())
+        self.assertFalse(wanted_by_target and ordered_after_gitlab)
+
+    def test_readiness_check_also_notices_a_missing_audit_service(self):
+        unit = (HERE.parent / "ansible/roles/gitlab/templates/gitlab-health.service.j2").read_text()
+        self.assertIn("is-active --quiet gitlab-audit.service", unit)
+
+
 class EndToEnd(unittest.TestCase):
     """The service loop: five logs in, one flat audit file out, nothing lost or repeated across a restart."""
 
