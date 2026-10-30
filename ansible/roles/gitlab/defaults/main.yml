@@ -64,6 +64,9 @@ gitlab_application_settings:
   gravatar_enabled: false          # otherwise a visitor's browser contacts gravatar.com for every avatar
   default_project_visibility: 0    # private (0), internal (10), public (20): a project is made public on purpose
   home_page_url: "{{ gitlab_external_url }}/explore"   # an anonymous visitor lands on the public projects
+  # The Web IDE runs extension code, which GitLab serves from a separate address so it cannot reach your session. This
+  # fallback serves it from GitLab's own address when that one is unreachable: the isolation is lost. Not needed.
+  vscode_extension_marketplace_single_origin_fallback_enabled: false
 
 # Single sign-on through Keycloak: the homelab realm, on its private name, with the client "gitlab" that
 # tofu/keycloak creates. A user who signs in gets a GitLab account of that name automatically (sign-up
