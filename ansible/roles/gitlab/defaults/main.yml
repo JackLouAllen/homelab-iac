@@ -8,7 +8,7 @@
 
 # One pinned version; a plain dnf update must not move it. GitLab upgrades have required stops: read
 # the upgrade path first, take a backup, then change this and re-run.
-gitlab_version: 19.5.1-ce.0.el10
+gitlab_version: 19.5.3-ce.0.el10
 
 # GitLab builds every absolute link (clone URLs, sign-in redirects, the OIDC callback, the URLs it
 # gives CI jobs) from this one address, so it is the public name; tailnet devices reach the same name
