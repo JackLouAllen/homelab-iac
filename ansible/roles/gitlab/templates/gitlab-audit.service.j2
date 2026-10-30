@@ -5,9 +5,9 @@ After=gitlab-runsvdir.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -I {{ gitlab_audit_script }} follow /var/log/gitlab {{ gitlab_audit_log }} /var/lib/gitlab-audit/offsets.json
+ExecStart=/usr/bin/python3 -I {{ gitlab_audit_script }} follow {{ gitlab_audit_source_dir }} {{ gitlab_audit_log }} /var/lib/gitlab-audit/offsets.json
 Restart=always
-RestartSec=5
+RestartSec=30
 # Reads GitLab's logs, writes one file. Nothing else is writable or visible.
 StateDirectory=gitlab-audit
 LogsDirectory=gitlab-audit

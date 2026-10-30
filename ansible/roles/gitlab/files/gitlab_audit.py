@@ -185,6 +185,9 @@ def save_state(path, state):
 
 def follow(log_dir, out_file, state_file, interval=1.0, stop=lambda: False):
     saved = load_state(state_file)
+    if not any(os.path.exists(os.path.join(log_dir, name + ".log")) for name in SOURCES):
+        # A service that watches nothing must not look healthy: fail, so the failed-unit alert fires
+        sys.exit(f"gitlab_audit: none of the GitLab logs exist in {log_dir}")
     tailers = {name: Tailer(os.path.join(log_dir, name + ".log"), tuple(saved[name]) if saved.get(name) else None)
                for name in SOURCES}
     try:

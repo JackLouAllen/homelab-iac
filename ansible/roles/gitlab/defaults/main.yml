@@ -38,6 +38,8 @@ gitlab_health_retries: 3
 # The flat audit log Wazuh reads (gitlab_audit.py). The path is also listed in wazuh_json_logs in the wazuh role.
 gitlab_audit_script: /usr/local/lib/gitlab-audit/gitlab_audit.py
 gitlab_audit_log: /var/log/gitlab-audit/audit.json
+# Where GitLab writes the logs the converter reads (application_json.log and the rest)
+gitlab_audit_source_dir: /var/log/gitlab/gitlab-rails
 
 # Directories bind-mounted from the data volume before anything is installed.
 gitlab_bind_dirs:

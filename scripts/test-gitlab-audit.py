@@ -196,6 +196,20 @@ class Tailing(unittest.TestCase):
         self.assertEqual(t.poll(), [])  # first-ever open starts at the end by design
 
 
+class Startup(unittest.TestCase):
+    def test_fails_loudly_when_it_finds_none_of_the_logs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit) as caught:
+                audit.follow(tmp, os.path.join(tmp, "out"), os.path.join(tmp, "state"), stop=lambda: True)
+            self.assertIn("none of the GitLab logs", str(caught.exception))
+
+    def test_the_role_points_at_the_directory_gitlab_really_writes_to(self):
+        defaults = (HERE.parent / "ansible/roles/gitlab/defaults/main.yml").read_text()
+        self.assertIn("gitlab_audit_source_dir: /var/log/gitlab/gitlab-rails", defaults)
+        unit = (HERE.parent / "ansible/roles/gitlab/templates/gitlab-audit.service.j2").read_text()
+        self.assertIn("follow {{ gitlab_audit_source_dir }}", unit)
+
+
 class EndToEnd(unittest.TestCase):
     """The service loop: five logs in, one flat audit file out, nothing lost or repeated across a restart."""
 
