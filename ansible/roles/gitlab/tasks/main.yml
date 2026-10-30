@@ -33,3 +33,7 @@
 - name: Backups
   ansible.builtin.import_tasks: backup.yml
   tags: [gitlab_backup]
+
+- name: Readiness check
+  ansible.builtin.import_tasks: health.yml
+  tags: [gitlab_health]

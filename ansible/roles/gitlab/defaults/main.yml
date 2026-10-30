@@ -31,6 +31,10 @@ gitlab_backup_keep_seconds: 604800  # one week; restic keeps the long history
 gitlab_backup_calendar: "*-*-* 03:00:00 UTC"
 gitlab_backup_memory_max: 3G
 
+# The readiness check (gitlab-health.timer). A failure is a failed unit, which Wazuh alerts on.
+gitlab_health_interval: 3min
+gitlab_health_retries: 3
+
 # Directories bind-mounted from the data volume before anything is installed.
 gitlab_bind_dirs:
   - {src: /opt/gitlab, dest: "{{ gitlab_data_root }}/opt"}

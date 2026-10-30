@@ -1,0 +1,13 @@
+failed sign-in
+admin sign-in
+rate limited request
+API: project made public
+API: project made private (no alert)
+API: token created
+API: user created
+web: project made public
+web: project made private (no alert)
+web: token created
+web: token form rejected (no alert)
+exception
+an ordinary page view (no alert)

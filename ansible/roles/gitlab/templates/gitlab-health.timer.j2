@@ -1,0 +1,11 @@
+# Managed by Ansible
+[Unit]
+Description=GitLab readiness check every few minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec={{ gitlab_health_interval }}
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
