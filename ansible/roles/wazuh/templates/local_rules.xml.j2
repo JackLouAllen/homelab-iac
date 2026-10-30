@@ -222,3 +222,29 @@
 
 </group>
 
+<group name="local,runner,">
+
+  <!--
+    The CI runner's firewall (runner-egress, runner role) drops what its jobs may not reach and logs a few of those
+    attempts to the kernel log. A pipeline that does its work never touches a blocked address, so one is worth a
+    look: a job probing the network. Lines are in scripts/runner-wazuh-samples.log (copied from the first isolation
+    test, 2026-10-30). The source is the host's own address, so only the prefix identifies the runner.
+  -->
+  <rule id="100420" level="8">
+    <match>runner-egress-drop: </match>
+    <description>CI runner: a job tried to reach an address it is not allowed to (network probing).</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+  </rule>
+
+  <rule id="100421" level="10" frequency="6" timeframe="120">
+    <if_matched_sid>100420</if_matched_sid>
+    <description>CI runner: repeated blocked connections from jobs (6 in 2 minutes).</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+  </rule>
+
+</group>
+
