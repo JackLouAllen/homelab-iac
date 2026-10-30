@@ -19,6 +19,16 @@
   register: runner_linger
   failed_when: not runner_linger.stat.exists
 
+# The runner talks to GitLab through the private door. On this host the name must resolve to the tailnet address;
+# otherwise it resolves to Cloudflare and the runner meets the public read-only door, which refuses every POST
+# (405 on each job request). Jobs get the same mapping through extra_hosts in config.toml.
+- name: Make GitLab's name resolve to the private door on this host
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED: CI runner reaches GitLab's private door"
+    block: "{{ runner_gitlab_address }} {{ runner_gitlab_name }}"
+  notify: Restart the runner
+
 - name: Network rules and resource limits
   ansible.builtin.import_tasks: isolation.yml
   tags: [runner_isolation]
