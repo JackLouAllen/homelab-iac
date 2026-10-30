@@ -44,12 +44,16 @@ runner_gitlab_name: git.jacklouallen.info
 runner_token: ""
 
 # What a job gets. Names must be fully qualified: an unqualified name matches nothing here and is refused.
+# The runner matches these with doublestar: "*" stays inside one path segment, so "ghcr.io/*" would match only
+# "ghcr.io/x" and never "ghcr.io/org/name:tag"; "**" crosses segments. Each pattern starts with the registry name and
+# a slash, so a look-alike host (ghcr.io.evil.example) cannot match. scripts/test-runner-allowlist.py proves this.
+# The default image below is always allowed, whatever this list says.
 runner_default_image: registry.access.redhat.com/ubi10/ubi-minimal:latest
 runner_allowed_images:
-  - ghcr.io/*
-  - quay.io/*
-  - registry.access.redhat.com/*
-  - docker.io/library/*
+  - ghcr.io/*/**
+  - quay.io/*/**
+  - registry.access.redhat.com/*/**
+  - docker.io/library/*/**
 # Services (extra containers next to a job) are not used. The runner treats an EMPTY allow-list as "everything
 # allowed" (the first isolation test ran docker:dind that way), so "none" is a pattern that matches no image name.
 runner_allowed_services:
