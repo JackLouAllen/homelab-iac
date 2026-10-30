@@ -230,7 +230,9 @@
     look: a job probing the network. Lines are in scripts/runner-wazuh-samples.log (copied from the first isolation
     test, 2026-10-30). The source is the host's own address, so only the prefix identifies the runner.
   -->
+  <!-- Wazuh's own rule 4100 (firewall drop) claims these lines first, so this refines it instead of competing. -->
   <rule id="100420" level="8">
+    <if_sid>4100</if_sid>
     <match>runner-egress-drop: </match>
     <description>CI runner: a job tried to reach an address it is not allowed to (network probing).</description>
     <mitre>
