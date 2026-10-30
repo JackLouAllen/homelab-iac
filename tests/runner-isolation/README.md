@@ -6,13 +6,14 @@ A pipeline of jobs that try what a hostile job would try, run against the CI run
 ## Run it
 
 It needs a project the runner serves, and nothing else on the branch it runs from (so it cannot be confused with a
-real pipeline). From a clone with the repository's history not needed:
-
+real pipeline). 
 ```bash
+git remote add gitlab https://git.jacklouallen.info/jackl/homelab-iac.git   # once
 git switch --orphan runner-isolation-test
-git --work-tree=tests/runner-isolation checkout HEAD -- .gitlab-ci.yml 2>/dev/null || cp tests/runner-isolation/.gitlab-ci.yml .
+git show main:tests/runner-isolation/.gitlab-ci.yml > .gitlab-ci.yml
 git add .gitlab-ci.yml && git commit -m "Runner isolation test"
-git push origin runner-isolation-test
+git push gitlab runner-isolation-test
+git switch main
 ```
 
 Delete the branch afterwards.
