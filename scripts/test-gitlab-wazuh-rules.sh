@@ -21,7 +21,7 @@ declare -A want=(
 )
 status=0
 while IFS= read -r label && IFS= read -r line <&3; do
-    got=$(printf '%s\n' "$line" | /var/ossec/bin/wazuh-logtest 2>&1 | awk '/^\*\*Phase 3/ {p=1} p && /id: / {gsub(/\x27/, "", $2); id=$2} END {print id}')
+    got=$(printf '%s\n' "$line" | /var/ossec/bin/wazuh-logtest 2>&1 | awk '/^\*\*Phase 3/ {p=1} p && /^[ \t]*id: \x27[0-9]+\x27/ {gsub(/\x27/, "", $2); id=$2} END {print id}')
     if [ "$got" = "${want[$label]}" ]; then echo "ok    $label -> $got"; else echo "FAIL  $label -> ${got:-no rule}, wanted ${want[$label]}"; status=1; fi
 done < "$here/gitlab-wazuh-samples.labels" 3< "$here/gitlab-wazuh-samples.log"
 echo
