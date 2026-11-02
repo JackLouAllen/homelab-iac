@@ -1,0 +1,20 @@
+---
+# OVH's cloud-init created "rocky" with the key uploaded to the control panel.
+baseline_disable_cloud_init: true
+baseline_remove_users: [rocky]
+
+# The image's disk has a BIOS boot partition, /boot and an EFI partition ahead of the LVM partition:
+# the physical volume is partition 4 here, not 3.
+baseline_lvm_partition_number: 4
+baseline_lvm_pv: /dev/sda4
+
+# One 40 GB disk, no separate data volume: /srv is a logical volume. Sizes are final and lvol
+# refuses to shrink, so they leave about 1 GB free in the volume group.
+baseline_lvm_volumes:
+  - {name: var, size: 8g}
+  - {name: var_log, size: 4g}
+  - {name: var_log_audit, size: 3g}
+  - {name: srv, size: 8g}
+
+# SSH only over the tailnet (the role asserts the Tailscale interface exists).
+baseline_ssh_tailscale_only: true

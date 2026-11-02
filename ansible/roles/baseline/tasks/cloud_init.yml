@@ -1,0 +1,18 @@
+---
+# cloud-init skips itself on boot when this file exists.
+- name: Disable cloud-init
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/cloud/cloud-init.disabled
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+  when: baseline_disable_cloud_init
+
+- name: Remove the accounts the provider created
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: true
+  loop: "{{ baseline_remove_users }}"

@@ -22,6 +22,10 @@
   ansible.builtin.import_tasks: ssh.yml
   tags: ssh
 
+- name: Provider accounts and cloud-init
+  ansible.builtin.import_tasks: cloud_init.yml
+  tags: cloud_init
+
 - name: Services
   ansible.builtin.import_tasks: services.yml
   tags: services

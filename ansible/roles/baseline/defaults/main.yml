@@ -27,6 +27,11 @@ baseline_tailnet_ports: []
 
 baseline_chrony_servers: []
 
+# Hosts whose provider ships cloud-init (OVH): it would recreate the users and keys of the provider's
+# metadata on a later boot. true turns it off; the users listed are removed with their home.
+baseline_disable_cloud_init: false
+baseline_remove_users: []
+
 baseline_lvm_disk: /dev/sda
 baseline_lvm_partition_number: 3
 baseline_lvm_pv: /dev/sda3
