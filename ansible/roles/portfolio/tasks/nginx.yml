@@ -1,0 +1,74 @@
+---
+- name: Create the nginx service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Sandbox the nginx service
+  ansible.builtin.template:
+    src: nginx-hardening.conf.j2
+    dest: /etc/systemd/system/nginx.service.d/hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: portfolio_sandbox_units
+  notify:
+    - Reload systemd for portfolio
+    - Restart nginx
+
+- name: Remove the nginx sandbox when it is switched off
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d/hardening.conf
+    state: absent
+  when: not portfolio_sandbox_units
+  notify:
+    - Reload systemd for portfolio
+    - Restart nginx
+
+- name: Create the site directory
+  ansible.builtin.file:
+    path: "{{ portfolio_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# Placed only if there is no site yet: the real site is delivered into this directory later.
+- name: Put up the placeholder page
+  ansible.builtin.copy:
+    src: index.html
+    dest: "{{ portfolio_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+
+- name: Install the security headers
+  ansible.builtin.template:
+    src: security-headers.conf.j2
+    dest: /etc/nginx/security-headers.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: nginx -t -c %s
+  notify: Reload nginx
+
+- name: Flush handlers before starting nginx
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable nginx
+  ansible.builtin.systemd_service:
+    name: nginx.service
+    enabled: true
+    state: started

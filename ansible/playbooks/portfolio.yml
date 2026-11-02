@@ -1,0 +1,5 @@
+---
+- name: Public site
+  hosts: ovh
+  roles:
+    - {role: portfolio, tags: [portfolio]}

@@ -46,3 +46,24 @@ variable "tailnet_ip" {
     error_message = "Expected an address in the Tailscale range 100.64.0.0/10."
   }
 }
+
+variable "ovh1_tunnel_name" {
+  type    = string
+  default = "ovh1"
+}
+
+variable "ovh1_public_names" {
+  description = "Names the ovh1 tunnel serves, as labels in the public zone; \"@\" is the zone apex."
+  type        = list(string)
+  default     = ["@", "www", "status"]
+  validation {
+    condition     = alltrue([for h in var.ovh1_public_names : h == "@" || can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", h))])
+    error_message = "Use \"@\" or lowercase letters, digits and hyphens."
+  }
+}
+
+variable "ovh1_origin_service" {
+  description = "Where cloudflared on ovh1 sends public traffic: nginx's loopback listener (portfolio_port)."
+  type        = string
+  default     = "http://127.0.0.1:8008"
+}

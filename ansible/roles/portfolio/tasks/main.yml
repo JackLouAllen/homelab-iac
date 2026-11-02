@@ -1,0 +1,12 @@
+---
+- name: Packages
+  ansible.builtin.import_tasks: packages.yml
+  tags: [portfolio_packages]
+
+- name: Nginx
+  ansible.builtin.import_tasks: nginx.yml
+  tags: [portfolio_nginx]
+
+- name: Cloudflared
+  ansible.builtin.import_tasks: cloudflared.yml
+  tags: [portfolio_tunnel]

@@ -1,0 +1,22 @@
+---
+- name: Import the Cloudflare signing key
+  ansible.builtin.rpm_key:
+    key: "{{ portfolio_cloudflare_key_url }}"
+    fingerprint: "{{ portfolio_cloudflare_key_fingerprint }}"
+    state: present
+
+- name: Add the Cloudflare repository
+  ansible.builtin.yum_repository:
+    name: cloudflared-stable
+    description: cloudflared stable
+    baseurl: https://pkg.cloudflare.com/cloudflared/rpm
+    gpgkey: "{{ portfolio_cloudflare_key_url }}"
+    gpgcheck: true
+    enabled: true
+
+- name: Install nginx and cloudflared
+  ansible.builtin.dnf:
+    name:
+      - nginx
+      - cloudflared
+    state: present

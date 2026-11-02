@@ -64,3 +64,52 @@ resource "cloudflare_dns_record" "private_wildcard" {
   ttl     = 300
   comment = "Tailnet only; 100.64.0.0/10 is not routable on the internet"
 }
+
+# --- Second tunnel: ovh1, the public site. Same shape as oci1's; nothing listens on ovh1's public address ---
+resource "random_password" "ovh1_tunnel_secret" {
+  length  = 32
+  special = false
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared" "ovh1" {
+  account_id    = var.cloudflare_account_id
+  name          = var.ovh1_tunnel_name
+  config_src    = "cloudflare"
+  tunnel_secret = base64encode(random_password.ovh1_tunnel_secret.result)
+}
+
+locals {
+  # "@" is the zone apex.
+  ovh1_public_fqdns = { for h in var.ovh1_public_names : h => h == "@" ? var.public_zone : "${h}.${var.public_zone}" }
+}
+
+resource "cloudflare_zero_trust_tunnel_cloudflared_config" "ovh1" {
+  account_id = var.cloudflare_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.ovh1.id
+
+  config = {
+    ingress = concat(
+      [for fqdn in values(local.ovh1_public_fqdns) : {
+        hostname = fqdn
+        service  = var.ovh1_origin_service
+      }],
+      [{ service = "http_status:404" }],
+    )
+  }
+}
+
+resource "cloudflare_dns_record" "ovh1_public" {
+  for_each = local.ovh1_public_fqdns
+
+  zone_id = data.cloudflare_zone.public.id
+  name    = each.value
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.ovh1.id}.cfargotunnel.com"
+  proxied = true
+  ttl     = 1 # automatic; required for proxied records
+}
+
+data "cloudflare_zero_trust_tunnel_cloudflared_token" "ovh1" {
+  account_id = var.cloudflare_account_id
+  tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.ovh1.id
+}
