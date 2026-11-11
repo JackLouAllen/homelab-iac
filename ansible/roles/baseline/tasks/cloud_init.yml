@@ -16,3 +16,10 @@
     state: absent
     remove: true
   loop: "{{ baseline_remove_users }}"
+
+# Written by cloud-init for its default account; JackL gets sudo through the wheel group.
+- name: Remove the sudo rule cloud-init wrote
+  ansible.builtin.file:
+    path: /etc/sudoers.d/90-cloud-init-users
+    state: absent
+  when: baseline_disable_cloud_init

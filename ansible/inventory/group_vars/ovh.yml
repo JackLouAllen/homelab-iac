@@ -1,7 +1,9 @@
 ---
-# OVH's cloud-init created "rocky" with the key uploaded to the control panel.
+# OVH's cloud-init created "rocky" with the key uploaded to the control panel, and the image's own
+# default account "cloud-user" (locked, empty authorized_keys, but with a passwordless sudo rule in
+# /etc/sudoers.d/90-cloud-init-users).
 baseline_disable_cloud_init: true
-baseline_remove_users: [rocky]
+baseline_remove_users: [rocky, cloud-user]
 
 # The image's disk has a BIOS boot partition, /boot and an EFI partition ahead of the LVM partition:
 # the physical volume is partition 4 here, not 3.
@@ -15,6 +17,10 @@ baseline_lvm_volumes:
   - {name: var_log, size: 4g}
   - {name: var_log_audit, size: 3g}
   - {name: srv, size: 8g}
+
+# /var/log/audit is 3 GiB here (6 GiB on oci1), and a full audit volume puts the host in single-user mode
+# (admin_space_left_action). Rotated logs are kept 30 days, not 90; Wazuh holds the history.
+cis_audit_retention_days: 30
 
 # SSH only over the tailnet (the role asserts the Tailscale interface exists).
 baseline_ssh_tailscale_only: true
