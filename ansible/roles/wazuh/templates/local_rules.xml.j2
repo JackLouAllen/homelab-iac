@@ -250,3 +250,19 @@
 
 </group>
 
+<group name="local,windows,">
+
+  <!--
+    Windows audits every failed privileged-service call (event 4673). A game running from Steam makes
+    thousands a minute: on 2026-11-10 one title produced about 3 million alerts and 15 GB, and filled /var
+    on oci1. Alerts for processes under a steamapps directory are dropped (level 0, so no alert is written);
+    the same event from any other process still alerts through rule 60107.
+  -->
+  <rule id="100500" level="0">
+    <if_sid>60107</if_sid>
+    <field name="win.eventdata.processName" type="pcre2">(?i)[\\/]+steamapps[\\/]+</field>
+    <description>Windows: failed privileged-service call from a Steam game (noise).</description>
+  </rule>
+
+</group>
+
