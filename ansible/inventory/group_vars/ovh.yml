@@ -24,3 +24,16 @@ cis_audit_retention_days: 30
 
 # SSH only over the tailnet (the role asserts the Tailscale interface exists).
 baseline_ssh_tailscale_only: true
+
+# Uptime Kuma runs here as a rootless service account (see the uptime_kuma role). The ID range follows the
+# ones on oci1: each account gets the next block of 65536 after the last one used there.
+podman_host_service_users:
+  - {name: kuma, uid: 2004, subid_start: 396608}
+
+# nginx (portfolio role) publishes Kuma's public status page by proxying to loopback port 8009.
+uptime_kuma_published_port: 8009
+portfolio_status_upstream: "127.0.0.1:{{ uptime_kuma_published_port }}"
+
+# Kuma's admin interface, on the tailnet only, over a certificate Tailscale issues for this host's own name (see the
+# portfolio role). SSH forwarding is off here (CIS 5.1.8), so the interface cannot be reached through a tunnel.
+portfolio_admin_enabled: true

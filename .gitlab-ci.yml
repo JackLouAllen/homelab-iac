@@ -80,6 +80,15 @@ nginx-config:
     - apt-get update -qq && apt-get install -y -qq python3 python3-jinja2 python3-yaml openssl curl
     - bash scripts/test-edge-nginx.sh --here
 
+# The status page's nginx configuration, rendered from the portfolio role and exercised for real: only the public
+# pages of Uptime Kuma and the push endpoint get through, and its admin interface and every write are refused.
+nginx-status-config:
+  stage: check
+  extends: .nginx
+  script:
+    - apt-get update -qq && apt-get install -y -qq python3 python3-jinja2 curl openssl
+    - bash scripts/test-status-nginx.sh --here
+
 # Each OpenTofu module must be valid. No state, no credentials: the backend is switched off.
 tofu-validate:
   stage: check

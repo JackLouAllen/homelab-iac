@@ -8,6 +8,23 @@ portfolio_root: /var/www/portfolio
 # (503) until Uptime Kuma exists. Anything else gets 404.
 portfolio_status_name: "status.{{ portfolio_zone }}"
 
+# Where Uptime Kuma listens on this host. Empty keeps the placeholder; set it and the status name proxies the
+# public pages of Kuma (and nothing else of it) to this address.
+portfolio_status_upstream: ""
+
+# Uptime Kuma's admin interface on the tailnet only: nginx listens on this host's Tailscale address and serves the
+# whole of Kuma there (login, dashboard, WebSocket) under the host's own MagicDNS name, with a certificate Tailscale
+# issues for that name. No DNS record and no DNS token are involved. It needs "HTTPS Certificates" switched on once in
+# the Tailscale admin console (DNS page), and portfolio_status_upstream to be set.
+portfolio_admin_enabled: false
+portfolio_tailnet_ip: "{{ ansible_facts['tailscale0']['ipv4']['address'] | default('') }}"
+# Read from "tailscale status" at run time (this host's name, ending .ts.net), so the tailnet's name is not kept in Git.
+portfolio_admin_domain: ""
+portfolio_admin_cert_file: "/etc/pki/tls/certs/{{ portfolio_admin_domain }}.crt"
+portfolio_admin_key_file: "/etc/pki/tls/private/{{ portfolio_admin_domain }}.key"
+# Tailscale's certificates last 90 days and "tailscale cert" renews them when they are near the end.
+portfolio_admin_renew_calendar: weekly
+
 # Sandbox the units (systemd-analyze security); false only to debug.
 portfolio_sandbox_units: true
 

@@ -1,0 +1,23 @@
+---
+# Uptime Kuma as one rootless container under the "kuma" account (created by podman_host). It listens on
+# loopback only: nginx (portfolio role) publishes the public status page and the push endpoint on the public name,
+# and nothing else of it. The admin interface is served by nginx on this host's tailnet address only (SSH forwarding
+# is off by CIS 5.1.8, so a tunnel is not an option), never from the internet.
+uptime_kuma_user: kuma
+uptime_kuma_uid: 2004
+uptime_kuma_home: /srv/containers/kuma
+uptime_kuma_xdg_runtime_dir: /run/user/{{ uptime_kuma_uid }}
+# Prefix for commands that run as the service account (see the keycloak role for why runuser and HOME).
+uptime_kuma_as_user: >-
+  runuser -u {{ uptime_kuma_user }} -- env HOME={{ uptime_kuma_home }}
+  XDG_RUNTIME_DIR={{ uptime_kuma_xdg_runtime_dir }}
+
+# Pinned by digest (a multi-arch index) and never "latest": an upgrade is a deliberate change of this line.
+# The rootless variant runs as an unprivileged user inside the container; the slim one leaves out Chromium,
+# which only the browser-engine monitors use.
+uptime_kuma_image: docker.io/louislam/uptime-kuma@sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0  # 2.5.9-slim-rootless
+
+# The host port, on loopback. nginx (portfolio role) connects to it, which SELinux allows only through the
+# httpd_can_network_relay boolean that role sets (the label on the port does not matter for that); keep it in step
+# with portfolio_status_upstream (both are set in group_vars/ovh.yml).
+uptime_kuma_published_port: 8009

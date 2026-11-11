@@ -1,0 +1,11 @@
+# Managed by Ansible
+[Unit]
+Description=Check the Tailscale certificate for {{ portfolio_admin_domain }}
+
+[Timer]
+OnCalendar={{ portfolio_admin_renew_calendar }}
+RandomizedDelaySec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

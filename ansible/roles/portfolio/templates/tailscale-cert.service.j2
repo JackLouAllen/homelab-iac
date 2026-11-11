@@ -1,0 +1,17 @@
+# Managed by Ansible
+[Unit]
+Description=Renew the Tailscale certificate for {{ portfolio_admin_domain }}
+After=tailscaled.service
+Wants=tailscaled.service
+
+[Service]
+Type=oneshot
+# "tailscale cert" keeps the files as they are while the certificate has plenty of time left, and replaces them
+# when it is near the end. The reload makes nginx read whatever is there now.
+ExecStart=/usr/bin/tailscale cert --cert-file {{ portfolio_admin_cert_file }} --key-file {{ portfolio_admin_key_file }} {{ portfolio_admin_domain }}
+ExecStartPost=/usr/bin/systemctl reload nginx.service
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/etc/pki/tls/certs /etc/pki/tls/private

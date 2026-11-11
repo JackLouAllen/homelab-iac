@@ -1,0 +1,16 @@
+---
+- name: Reload the kuma user's systemd
+  ansible.builtin.command: >-
+    {{ uptime_kuma_as_user }}
+    systemctl --user daemon-reload
+  args:
+    chdir: /
+  changed_when: true
+
+- name: Restart Uptime Kuma
+  ansible.builtin.command: >-
+    {{ uptime_kuma_as_user }}
+    systemctl --user restart uptime-kuma.service
+  args:
+    chdir: /
+  changed_when: true

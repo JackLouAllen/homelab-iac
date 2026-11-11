@@ -1,0 +1,5 @@
+---
+- name: Uptime Kuma
+  hosts: ovh
+  roles:
+    - {role: uptime_kuma, tags: [uptime_kuma]}

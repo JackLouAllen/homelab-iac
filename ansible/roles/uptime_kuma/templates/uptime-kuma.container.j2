@@ -1,0 +1,26 @@
+# Managed by Ansible
+[Unit]
+Description=Uptime Kuma
+
+[Container]
+ContainerName=uptime-kuma
+Image={{ uptime_kuma_image }}
+PublishPort=127.0.0.1:{{ uptime_kuma_published_port }}:3001
+# :Z labels for SELinux, :U chowns the directory to the user the image runs as, which inside this rootless
+# user namespace is a subordinate ID on the host.
+Volume={{ uptime_kuma_home }}/data:/app/data:Z,U
+# SQLite in the data directory. Without this the first visitor to the admin interface is asked to choose a database.
+Environment=UPTIME_KUMA_DB_TYPE=sqlite
+Environment=TZ=UTC
+NoNewPrivileges=true
+DropCapability=ALL
+ReadOnly=true
+Tmpfs=/tmp
+
+[Service]
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,83 @@
+---
+- name: Check Tailscale has an address
+  ansible.builtin.assert:
+    that: portfolio_tailnet_ip | length > 0
+    fail_msg: tailscale0 has no address; join the tailnet first.
+    quiet: true
+
+- name: Read this host's name on the tailnet
+  ansible.builtin.command: tailscale status --json
+  register: portfolio_ts_status
+  changed_when: false
+  check_mode: false
+
+- name: Work out the certificate name
+  ansible.builtin.set_fact:
+    portfolio_admin_domain: "{{ (portfolio_ts_status.stdout | from_json).Self.DNSName | regex_replace('\\.$', '') }}"
+
+- name: Check the name is a tailnet name
+  ansible.builtin.assert:
+    that: portfolio_admin_domain is match('^[a-z0-9-]+\.[a-z0-9.-]+\.ts\.net$')
+    fail_msg: >-
+      Tailscale reports "{{ portfolio_admin_domain }}" for this host, which is not a .ts.net name.
+      Turn MagicDNS on in the Tailscale admin console (DNS page).
+    quiet: true
+
+- name: Say where the admin interface will be
+  ansible.builtin.debug:
+    msg: "Uptime Kuma's admin interface: https://{{ portfolio_admin_domain }} (tailnet devices only)"
+
+- name: Check for an existing certificate
+  ansible.builtin.stat:
+    path: "{{ portfolio_admin_cert_file }}"
+  register: portfolio_admin_cert
+
+# Tailscale asks its own service for the certificate; the key is created here and never leaves the host.
+- name: Get the certificate from Tailscale
+  block:
+    - name: Run tailscale cert
+      ansible.builtin.command:
+        argv:
+          - tailscale
+          - cert
+          - --cert-file
+          - "{{ portfolio_admin_cert_file }}"
+          - --key-file
+          - "{{ portfolio_admin_key_file }}"
+          - "{{ portfolio_admin_domain }}"
+      changed_when: not portfolio_admin_cert.stat.exists
+      when: not ansible_check_mode
+  rescue:
+    - name: Say what to turn on
+      ansible.builtin.fail:
+        msg: >-
+          tailscale cert failed for {{ portfolio_admin_domain }}. Switch on "HTTPS Certificates" in the Tailscale
+          admin console (DNS page), wait a minute, and run this again.
+
+# The files are written by the tailscale command, so they carry no SELinux type of their own; nginx may only read
+# certificate files labelled cert_t.
+- name: Label the certificate files for nginx
+  ansible.builtin.command: restorecon {{ portfolio_admin_cert_file }} {{ portfolio_admin_key_file }}
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Install the renewal units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - tailscale-cert.service
+    - tailscale-cert.timer
+  notify: Reload systemd for portfolio
+
+- name: Apply the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable certificate renewal
+  ansible.builtin.systemd_service:
+    name: tailscale-cert.timer
+    enabled: true
+    state: started

@@ -3,6 +3,11 @@
   ansible.builtin.import_tasks: packages.yml
   tags: [portfolio_packages]
 
+- name: Tailnet certificate for the admin interface
+  ansible.builtin.import_tasks: tailnet.yml
+  when: portfolio_admin_enabled
+  tags: [portfolio_admin, portfolio_nginx]
+
 - name: Nginx
   ansible.builtin.import_tasks: nginx.yml
   tags: [portfolio_nginx]

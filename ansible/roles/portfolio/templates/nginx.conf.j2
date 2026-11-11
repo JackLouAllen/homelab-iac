@@ -53,6 +53,100 @@ http {
         return 301 https://{{ portfolio_zone }}$request_uri;
     }
 
+{% if portfolio_status_upstream | length > 0 %}
+    upstream uptime_kuma {
+        server {{ portfolio_status_upstream }};
+        keepalive 4;
+    }
+
+    # A push monitor is a URL with a long random token that a host calls to say it is well. The token is the
+    # only secret, so the rate is limited per client address to keep guessing slow.
+    limit_req_zone $binary_remote_addr zone=status_push:1m rate=5r/s;
+
+    # Uptime Kuma. Only what a visitor to the status page needs is passed on; every other path, including the
+    # admin interface, its socket and the metrics, is a 404 from nginx and never reaches Kuma. The admin
+    # interface has its own listener on the tailnet address (below, when portfolio_admin_enabled is set).
+    server {
+        listen 127.0.0.1:{{ portfolio_port }};
+        server_name {{ portfolio_status_name }};
+        include /etc/nginx/security-headers.conf;
+
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 30s;
+
+        location / {
+            return 404;
+        }
+
+        # The page (the root is the status page when its domain is set in Kuma), its data, its scripts and its logo.
+        location ~ ^(?:/|/api/entry-page|/status/.+|/api/status-page/.+|/assets/.+|/upload/.+|/(?:favicon\.ico|icon\.svg|icon\.png|icon-192x192\.png|icon-512x512\.png|apple-touch-icon\.png|manifest\.json|serviceWorker\.js|robots\.txt))$ {
+            limit_except GET HEAD { deny all; }
+            proxy_pass http://uptime_kuma;
+        }
+
+        location ~ ^/api/push/[A-Za-z0-9]+$ {
+            limit_req zone=status_push burst=10 nodelay;
+            limit_req_status 429;
+            limit_except GET POST { deny all; }
+            proxy_pass http://uptime_kuma;
+        }
+    }
+{% if portfolio_admin_enabled %}
+
+    # Kuma's admin interface: the tailnet address only, under this host's own tailnet name, over the certificate
+    # Tailscale issued for it. Anything else that reaches the address is refused before any page is served.
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers PROFILE=SYSTEM;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:2m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # The admin interface runs on a WebSocket; a connection stays plain unless the client asks to upgrade
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+    server {
+        listen {{ portfolio_tailnet_ip }}:443 ssl default_server;
+        server_name _;
+        ssl_reject_handshake on;
+    }
+
+    server {
+        listen {{ portfolio_tailnet_ip }}:443 ssl;
+        http2 on;
+        server_name {{ portfolio_admin_domain }};
+
+        ssl_certificate {{ portfolio_admin_cert_file }};
+        ssl_certificate_key {{ portfolio_admin_key_file }};
+
+        include /etc/nginx/security-headers.conf;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        client_max_body_size 5m;
+
+        location / {
+            proxy_pass http://uptime_kuma;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            # A WebSocket is idle between Kuma's pings
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+        }
+    }
+{% endif %}
+{% else %}
     server {
         listen 127.0.0.1:{{ portfolio_port }};
         server_name {{ portfolio_status_name }};
@@ -60,4 +154,5 @@ http {
         default_type text/plain;
         return 503 "status is not deployed yet\n";
     }
+{% endif %}
 }

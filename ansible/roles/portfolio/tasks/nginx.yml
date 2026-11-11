@@ -1,4 +1,14 @@
 ---
+# httpd_t may not connect to another port by default, even one labelled http_port_t (found on ovh1: connect()
+# failed with "Permission denied", an AVC for name_connect). The relay boolean is the narrow one: it allows
+# connections to HTTP-type ports only, where httpd_can_network_connect (the edge role's) allows any port.
+- name: Allow nginx to proxy to Uptime Kuma
+  ansible.posix.seboolean:
+    name: httpd_can_network_relay
+    state: true
+    persistent: true
+  when: portfolio_status_upstream | length > 0
+
 - name: Create the nginx service drop-in directory
   ansible.builtin.file:
     path: /etc/systemd/system/nginx.service.d
@@ -6,6 +16,28 @@
     owner: root
     group: root
     mode: "0755"
+
+# The admin listener binds the tailnet address, which exists only once tailscaled is up.
+- name: Wait for the tailnet address before starting nginx
+  ansible.builtin.template:
+    src: nginx-tailscale.conf.j2
+    dest: /etc/systemd/system/nginx.service.d/tailscale.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: portfolio_admin_enabled
+  notify:
+    - Reload systemd for portfolio
+    - Restart nginx
+
+- name: Remove the tailnet wait when the admin listener is off
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d/tailscale.conf
+    state: absent
+  when: not portfolio_admin_enabled
+  notify:
+    - Reload systemd for portfolio
+    - Restart nginx
 
 - name: Sandbox the nginx service
   ansible.builtin.template:

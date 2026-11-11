@@ -1,0 +1,59 @@
+---
+# Facts the rest of the role relies on: the account and its user systemd instance exist.
+- name: Check the service account exists and lingers
+  ansible.builtin.stat:
+    path: /var/lib/systemd/linger/{{ uptime_kuma_user }}
+  register: uptime_kuma_linger
+  failed_when: not uptime_kuma_linger.stat.exists
+
+# The unit mounts this with :U, which makes Podman give the directory to the user the image runs as (a
+# subordinate ID on the host). Setting the owner on every run would hand it back to the kuma account and
+# the running container would lose access, so it is only created, never adjusted.
+- name: Check whether the data directory exists
+  ansible.builtin.stat:
+    path: "{{ uptime_kuma_home }}/data"
+  register: uptime_kuma_data
+
+- name: Create the data directory
+  ansible.builtin.file:
+    path: "{{ uptime_kuma_home }}/data"
+    state: directory
+    owner: "{{ uptime_kuma_user }}"
+    group: "{{ uptime_kuma_user }}"
+    mode: "0700"
+  when: not uptime_kuma_data.stat.exists
+
+- name: Install the Quadlet unit
+  ansible.builtin.template:
+    src: uptime-kuma.container.j2
+    dest: "{{ uptime_kuma_home }}/.config/containers/systemd/uptime-kuma.container"
+    owner: "{{ uptime_kuma_user }}"
+    group: "{{ uptime_kuma_user }}"
+    mode: "0644"
+  notify:
+    - Reload the kuma user's systemd
+    - Restart Uptime Kuma
+
+- name: Flush handlers before starting the unit
+  ansible.builtin.meta: flush_handlers
+
+# Quadlet generates the service; the [Install] section enables it at generation time.
+- name: Start Uptime Kuma
+  ansible.builtin.command: >-
+    {{ uptime_kuma_as_user }}
+    systemctl --user start uptime-kuma.service
+  args:
+    chdir: /
+  changed_when: false
+  when: not ansible_check_mode
+
+# The first start pulls the image and creates the database: allow a few minutes.
+- name: Wait for Uptime Kuma on loopback
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ uptime_kuma_published_port }}/api/entry-page
+    status_code: 200
+  register: uptime_kuma_up
+  until: uptime_kuma_up.status == 200
+  retries: 30
+  delay: 10
+  when: not ansible_check_mode
