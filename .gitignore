@@ -41,6 +41,13 @@ age-yubikey-identity-*.txt
 # Real inventory; commit only hosts.example.yml
 ansible/inventory/hosts.yml
 
+# Private to the working copy: the SOPS files and the design notes and runbooks. This repository is
+# public, so they are named here and not only in .git/info/exclude, which a fresh clone does not have.
+ansible/inventory/secrets/
+docs/
+Claude.md
+.claude/
+
 # Raw OpenSCAP output embeds /etc/shadow lines and host addresses; commit only
 # copies produced by scripts/redact-openscap-report.py
 reports/openscap/*-cis-report.html
