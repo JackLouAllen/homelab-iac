@@ -49,6 +49,15 @@
         group: "{{ wazuh_dir_stat.stat.gr_name }}"
         mode: "{{ wazuh_dir_stat.stat.mode }}"
 
+    # Directories marked keep hold data that cannot be regenerated (the alert logs), so it is copied first.
+    # -a keeps owners, modes, hard links (the live alerts file and its dated name) and SELinux labels.
+    - name: Copy what the directory holds to the new location
+      ansible.builtin.command: cp -a --preserve=all {{ wazuh_dir.src }}/. {{ wazuh_dir.dest }}/  # noqa: command-instead-of-module
+      changed_when: true
+      when: wazuh_dir.keep | default(false)
+      # Filebeat follows alerts.json by inode, so it must reopen the file at its new place.
+      notify: Restart filebeat
+
     # Regenerable (scratch space, a re-downloadable feed), and it must not keep using /var.
     - name: Empty the old directory
       ansible.builtin.command: find {{ wazuh_dir.src }} -mindepth 1 -delete  # noqa: command-instead-of-module

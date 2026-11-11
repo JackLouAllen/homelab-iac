@@ -47,9 +47,14 @@ wazuh_vulnerability_detection: true
 # The vulnerability scanner unpacks a feed of about 7 GB through about 10 GB of scratch space.
 # /var is 18 GiB, so both live on the data volume and are bind-mounted back. Both are rebuilt
 # by the manager, so the old directory is emptied before it is mounted over.
+#
+# The alert logs live there too: one noisy source wrote 15 GB in a day (2026-11-10) and filled /var,
+# which stopped the dashboard. "keep" copies the existing data across before the old directory is
+# emptied, because the logs are the only copy of what the manager wrote since the last rotation.
 wazuh_relocated_dirs:
   - {src: /var/ossec/tmp, dest: "{{ wazuh_data_root }}/ossec/tmp"}
   - {src: /var/ossec/queue/vd, dest: "{{ wazuh_data_root }}/ossec/queue-vd"}
+  - {src: /var/ossec/logs, dest: "{{ wazuh_data_root }}/ossec/logs", keep: true}
 
 # Files Wazuh distributes outside its packages, pinned by hash.
 wazuh_template_url: https://raw.githubusercontent.com/wazuh/wazuh/v4.14.9/extensions/elasticsearch/7.x/wazuh-template.json
