@@ -1,7 +1,7 @@
 // Tailnet access policy. Paste into the Tailscale admin console (Access controls) and use the
 // preview and tests there before saving. Devices are tagged in the console:
 //   oci1         -> tag:server
-//   ovh1         -> tag:edge (public-facing: no access to the NAS or to the other servers)
+//   ovh1         -> tag:edge (public-facing: no access to the NAS, and only the Wazuh agent port on servers)
 //   Synology     -> tag:backup
 //   phone        -> tag:mobile
 // The laptop and desktop stay user-owned and are matched through autogroup:admin.
@@ -17,8 +17,9 @@
 		// Laptop and desktop: SSH and private HTTPS on servers.
 		{"src": ["autogroup:admin"], "dst": ["tag:server"], "ip": ["tcp:22", "tcp:443"]},
 
-		// Laptop and desktop: SSH and private HTTPS on the public-facing host. Nothing reaches out
-		// from tag:edge: it faces the internet, so a compromise there must not open a way inward.
+		// Laptop and desktop: SSH and private HTTPS on the public-facing host. tag:edge faces the
+		// internet, so a compromise there must not open a way inward: the only thing it may reach is
+		// the Wazuh manager's agent port (the grant further down).
 		{"src": ["autogroup:admin"], "dst": ["tag:edge"], "ip": ["tcp:22", "tcp:443"]},
 
 		// Laptop and desktop: manage the NAS over SSH and DSM HTTPS.
@@ -34,8 +35,11 @@
 		// authenticate with a key, so enrollment (1515) stays closed.
 		{"src": ["autogroup:admin"], "dst": ["tag:server"], "ip": ["tcp:1514"]},
 
+		// The Wazuh agent on ovh1 reports to the manager on oci1. One port, one direction; enrollment (1515)
+		// stays closed because the agent's key is made on the manager.
+		{"src": ["tag:edge"], "dst": ["tag:server"], "ip": ["tcp:1514"]},
+
 		// Add when the service exists, not before:
-		//   A Wazuh agent on ovh1 reporting to oci1: {"src": ["tag:edge"], "dst": ["tag:server"], "ip": ["tcp:1514"]}
 		//   Uptime Kuma checking private services: tcp:443 between servers
 	],
 
@@ -43,6 +47,6 @@
 		{"src": "tag:mobile", "accept": ["tag:server:443"], "deny": ["tag:server:22", "tag:server:1514", "tag:backup:22"]},
 		{"src": "tag:server", "accept": ["tag:backup:22"], "deny": ["tag:backup:5001", "tag:backup:445"]},
 		{"src": "tag:backup", "deny": ["tag:server:22", "tag:server:443", "tag:server:1514"]},
-		{"src": "tag:edge", "deny": ["tag:backup:22", "tag:backup:5001", "tag:server:22", "tag:server:443", "tag:server:1514"]},
+		{"src": "tag:edge", "accept": ["tag:server:1514"], "deny": ["tag:backup:22", "tag:backup:5001", "tag:server:22", "tag:server:443", "tag:server:1515"]},
 	],
 }

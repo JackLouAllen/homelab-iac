@@ -1,0 +1,152 @@
+---
+- name: Import the Wazuh signing key
+  ansible.builtin.rpm_key:
+    key: "{{ wazuh_agent_key_url }}"
+    fingerprint: "{{ wazuh_agent_key_fingerprint }}"
+    state: present
+
+# Package signatures are checked; the repository metadata is not signed.
+- name: Add the Wazuh repository
+  ansible.builtin.yum_repository:
+    name: wazuh
+    description: Wazuh repository
+    baseurl: "{{ wazuh_agent_repo_url }}"
+    gpgkey: "{{ wazuh_agent_key_url }}"
+    gpgcheck: true
+    enabled: true
+  register: wazuh_agent_repo
+
+- name: Install the tools the role needs
+  ansible.builtin.dnf:
+    name: python3-dnf-plugin-versionlock
+    state: present
+
+# The agent's postinstall script reads this to fill in the manager address; the role sets it again below.
+- name: Install the Wazuh agent at one pinned version
+  ansible.builtin.dnf:
+    name: wazuh-agent-{{ wazuh_agent_version }}
+    state: present
+  environment:
+    WAZUH_MANAGER: "{{ wazuh_agent_manager_address }}"
+  when: not (ansible_check_mode and wazuh_agent_repo is changed)
+
+- name: Hold the agent at that version
+  community.general.dnf_versionlock:
+    name: wazuh-agent
+    state: present
+  when: not (ansible_check_mode and wazuh_agent_repo is changed)
+
+# A dry run does not install the package, so the config does not exist yet; the edits below wait for it.
+- name: Look for the agent configuration
+  ansible.builtin.stat:
+    path: /var/ossec/etc/ossec.conf
+  register: wazuh_agent_conf
+
+- name: Check the agent key is available
+  ansible.builtin.stat:
+    path: /var/ossec/etc/client.keys
+  register: wazuh_agent_keys_file
+
+- name: Require the agent key on the first run
+  ansible.builtin.assert:
+    that: (wazuh_agent_key | length > 0) or (wazuh_agent_keys_file.stat.exists and wazuh_agent_keys_file.stat.size > 0)
+    fail_msg: >-
+      Pass wazuh_agent_key with -e @file from a tmpfs copy of inventory/secrets/wazuh-agent.sops.yml.
+      Make the key on the manager with manage_agents (see docs/WAZUH_AGENT.md).
+  when: not ansible_check_mode
+
+# manage_agents -e prints base64 of "ID NAME IP KEY"; client.keys holds the decoded line.
+- name: Store the agent key
+  ansible.builtin.copy:
+    content: "{{ wazuh_agent_key | b64decode | trim }}\n"
+    dest: /var/ossec/etc/client.keys
+    owner: root
+    group: wazuh
+    mode: "0640"
+  when:
+    - wazuh_agent_key | length > 0
+    - wazuh_agent_conf.stat.exists
+  no_log: true
+  notify: Restart the agent
+
+- name: Point the agent at the manager
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: (<client>\s*<server>\s*<address>)[^<]*(</address>)
+    replace: \g<1>{{ wazuh_agent_manager_address }}\g<2>
+  when: wazuh_agent_conf.stat.exists
+  notify: Restart the agent
+
+- name: Use TCP to the manager
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: (<server>(?:(?!</server>).)*?<protocol>)udp(</protocol>)
+    replace: \g<1>tcp\g<2>
+  when: wazuh_agent_conf.stat.exists
+  notify: Restart the agent
+
+- name: Watch the critical paths
+  ansible.builtin.replace:
+    path: /var/ossec/etc/ossec.conf
+    regexp: >-
+      <directories[^>]*>/etc,/usr/bin,/usr/sbin[^<]*</directories>\s*<directories[^>]*>/bin,/sbin[^<]*</directories>
+    replace: >-
+      <directories {{ wazuh_agent_fim_mode }}="yes">{{ wazuh_agent_fim_paths | join(',') }}</directories>\n    <directories>/bin,/sbin</directories>
+  when: wazuh_agent_conf.stat.exists
+  notify: Restart the agent
+
+# The package may already have added entries for logs it found at install time; blockinfile with a
+# marker keeps this one block in place across runs.
+- name: Read the nginx and CrowdSec logs
+  ansible.builtin.blockinfile:
+    path: /var/ossec/etc/ossec.conf
+    insertbefore: </ossec_config>
+    marker: "<!-- {mark} ANSIBLE MANAGED: extra logs -->"
+    block: |
+      {% for log in wazuh_agent_apache_logs %}
+        <localfile>
+          <log_format>apache</log_format>
+          <location>{{ log }}</location>
+        </localfile>
+      {% endfor %}
+      {% for log in wazuh_agent_json_logs %}
+        <localfile>
+          <log_format>json</log_format>
+          <location>{{ log }}</location>
+        </localfile>
+      {% endfor %}
+  when: wazuh_agent_conf.stat.exists
+  notify: Restart the agent
+
+# replace reports "ok" both when the file is already right and when its pattern matched nothing, which is
+# what a package update that reshapes the default ossec.conf would cause. Read the file back and fail
+# here, before the agent starts, if any of the three settings is missing.
+- name: Read the agent configuration back
+  ansible.builtin.slurp:
+    src: /var/ossec/etc/ossec.conf
+  register: wazuh_agent_conf_text
+  when: wazuh_agent_conf.stat.exists
+
+- name: Check the settings are in the configuration
+  ansible.builtin.assert:
+    that:
+      - wazuh_agent_conf_now is search('<address>' ~ (wazuh_agent_manager_address | regex_escape) ~ '</address>')
+      - wazuh_agent_conf_now is search('<protocol>tcp</protocol>')
+      - >-
+        wazuh_agent_conf_now is search('<directories ' ~ wazuh_agent_fim_mode ~ '="yes">'
+        ~ (wazuh_agent_fim_paths | join(',') | regex_escape) ~ '</directories>')
+    fail_msg: >-
+      /var/ossec/etc/ossec.conf does not hold the manager address, TCP, or the watched paths: the package's
+      default file has probably changed shape. Compare it with the patterns in this role.
+  vars:
+    wazuh_agent_conf_now: "{{ wazuh_agent_conf_text.content | b64decode }}"
+  when:
+    - wazuh_agent_conf.stat.exists
+    - not ansible_check_mode
+
+- name: Enable the agent
+  ansible.builtin.systemd_service:
+    name: wazuh-agent.service
+    enabled: true
+    state: started
+  when: wazuh_agent_conf.stat.exists

@@ -47,4 +47,10 @@ for name, job in jobs.items():
 check("secrets scan reads the whole history", jobs["secrets-scan"]["variables"]["GIT_DEPTH"] == "0")
 check("a branch push starts a pipeline", any("CI_COMMIT_BRANCH" in r["if"] for r in ci["workflow"]["rules"]))
 check("no job uses privileged services", not any("services" in job for job in jobs.values()))
+
+# Not the pipeline's shape, but the same kind of quiet break: an agent newer than its manager is refused.
+roles = root / "ansible/roles"
+manager = yaml.safe_load((roles / "wazuh/defaults/main.yml").read_text())["wazuh_version"]
+agent = yaml.safe_load((roles / "wazuh_agent/defaults/main.yml").read_text())["wazuh_agent_version"]
+check("the Wazuh agent and manager are pinned to the same version", agent == manager, f"agent {agent}, manager {manager}")
 sys.exit(1 if failures else 0)

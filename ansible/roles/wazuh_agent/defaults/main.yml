@@ -1,0 +1,29 @@
+---
+# A Wazuh agent that reports to the manager on oci1 over the tailnet. The agent version must not be
+# newer than the manager's (wazuh_version in the wazuh role); keep them equal.
+wazuh_agent_version: "4.14.9"
+
+wazuh_agent_repo_url: https://packages.wazuh.com/4.x/yum/
+wazuh_agent_key_url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+wazuh_agent_key_fingerprint: 0DCFCA5547B19D2A6099506096B3EE5F29111145  # gitleaks:allow (public signing-key fingerprint)
+
+# The manager's tailnet address: its listener binds only that address.
+wazuh_agent_manager_address: "{{ hostvars['oci1'].ansible_host }}"
+wazuh_agent_manager_port: 1514
+
+# The key is made on the manager (manage_agents -a, then -e) and arrives base64 encoded, exactly as
+# -e prints it. Supplied at run time from a tmpfs copy of inventory/secrets/wazuh-agent.sops.yml.
+# Enrollment on port 1515 stays closed on the manager.
+wazuh_agent_key: ""
+
+# File integrity monitoring: the same paths and mode as the manager.
+wazuh_agent_fim_mode: realtime
+wazuh_agent_fim_paths: [/etc, /usr/bin, /usr/sbin, /boot, /root]
+
+# Extra logs this host writes. The package's postinstall script already adds nginx's access and error
+# logs when nginx is installed first (checked on ovh1, 2026-11-02: listed twice with this block),
+# so the list is empty; fill it in for a host where nginx comes later. CrowdSec writes one JSON
+# object per alert (the crowdsec role), which the manager's rule 100200 reads.
+wazuh_agent_apache_logs: []
+wazuh_agent_json_logs:
+  - /var/log/crowdsec/alerts.json

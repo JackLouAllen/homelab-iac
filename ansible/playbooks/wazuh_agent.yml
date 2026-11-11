@@ -1,0 +1,5 @@
+---
+- name: Wazuh agent
+  hosts: ovh
+  roles:
+    - {role: wazuh_agent, tags: [wazuh_agent]}
