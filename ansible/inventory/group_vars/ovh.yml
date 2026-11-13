@@ -18,8 +18,10 @@ baseline_lvm_volumes:
   - {name: var_log_audit, size: 3g}
   - {name: srv, size: 8g}
 
-# /var/log/audit is 3 GiB here (6 GiB on oci1), and a full audit volume puts the host in single-user mode
-# (admin_space_left_action). Rotated logs are kept 30 days, not 90; Wazuh holds the history.
+# /var/log/audit is 3 GiB here, and a full audit volume puts the host in single-user mode (admin_space_left_action).
+# Rotated logs are kept 30 days, not 90. Wazuh keeps the alerts that matched a rule, not every audit record, so the
+# raw detail older than that is gone. Check the volume's growth here before relying on 30 days: it was set from
+# oci1's rate, not measured on this host.
 cis_audit_retention_days: 30
 
 # SSH only over the tailnet (the role asserts the Tailscale interface exists).

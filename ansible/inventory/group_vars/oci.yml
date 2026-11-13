@@ -9,9 +9,17 @@ baseline_data_mountpoint: /srv
 baseline_lvm_volumes:
   - {name: var, size: 18g}
   - {name: var_log, size: 8g}
-  - {name: var_log_audit, size: 6g}
+  # Was 6g. Audit logs grow by about 170 MB a day and by about a gigabyte on a day of heavy work (2026-10-28: 705 MB,
+  # 2026-10-30: 1.3 GB, 2026-11-11: 872 MB), and 90 days of that never fitted. At 6g the volume reached 86% on
+  # 2026-11-13, and a full one drops the host to single-user mode (admin_space_left_action). 10g leaves 2.4 GB of the
+  # volume group free.
+  - {name: var_log_audit, size: 10g}
 
 baseline_ssh_tailscale_only: true
+
+# Rotated audit logs are kept 30 days, not 90 (about 5 to 6 GB of the 10g volume). Wazuh keeps the alerts that matched a
+# rule, not every audit record, so the raw detail older than this is gone.
+cis_audit_retention_days: 30
 
 podman_host_service_users:
   - {name: keycloak, uid: 2001, subid_start: 200000}
