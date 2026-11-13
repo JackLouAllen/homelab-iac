@@ -1,0 +1,41 @@
+# Managed by Ansible
+[Unit]
+Description=Report local health checks to Uptime Kuma
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/status-push
+# Read by systemd as root and handed to the service in a private directory: the tokens are in no environment variable
+# and no command line.
+LoadCredential=tokens:/etc/status-push/tokens.json
+TimeoutStartSec=50
+# Root only because the Wazuh CA lives in a root-only directory and the checks verify the dashboard's certificate
+# against it; with no capabilities, root keeps only what its own ownership of those files gives it.
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

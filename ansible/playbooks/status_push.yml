@@ -1,0 +1,5 @@
+---
+- name: Report local health checks to Uptime Kuma
+  hosts: oci
+  roles:
+    - {role: status_push, tags: [status_push]}

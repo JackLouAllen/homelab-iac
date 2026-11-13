@@ -67,3 +67,30 @@ restic_repositories:
 # tailscale/policy.hujson allows only the admin's own devices and tag:edge to reach it.
 baseline_tailnet_ports:
   - 1514/tcp
+
+# Health checks reported to hidden push monitors in Uptime Kuma on ovh1 (status_push role). Each name is both the name of
+# a push monitor in Kuma and the key of its token in inventory/secrets/status-push.sops.yml. The disk limit is
+# low enough to act on: a full /var stopped the Wazuh dashboard on 2026-11-11, with every service still "active".
+status_push_monitors:
+  - name: wazuh-stack
+    tests:
+      - {kind: systemd, unit: wazuh-indexer}
+      - {kind: systemd, unit: wazuh-manager}
+      - {kind: systemd, unit: wazuh-dashboard}
+      - {kind: systemd, unit: filebeat}
+      - {kind: tcp, host: 127.0.0.1, port: 9200}   # the indexer
+      - {kind: tcp, host: 127.0.0.1, port: 55000}  # the manager's API, which the dashboard's Wazuh app calls
+      - {kind: tcp, host: "{{ ansible_facts['tailscale0']['ipv4']['address'] | default('127.0.0.1') }}", port: 1514}  # agents
+  - name: wazuh-dashboard
+    tests:
+      # Verified against the local CA, so an expired dashboard certificate (they last 730 days) shows as down
+      - {kind: http, url: "https://localhost:5601/app/login", cafile: /etc/wazuh-pki/root-ca.pem}
+  - name: oci1-disk
+    tests:
+      - {kind: disk, paths: [/, /var, /var/log, /var/log/audit, /srv], max_percent: 85}
+  - name: keycloak
+    tests:
+      - {kind: http, url: "http://127.0.0.1:8180/realms/master"}
+  - name: gitlab
+    tests:
+      - {kind: http, url: "http://127.0.0.1:8181/-/readiness"}

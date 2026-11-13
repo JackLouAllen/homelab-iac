@@ -1,0 +1,78 @@
+---
+- name: Look for an existing token file
+  ansible.builtin.stat:
+    path: /etc/status-push/tokens.json
+  register: status_push_token_file
+
+- name: Check the tokens were supplied
+  ansible.builtin.assert:
+    that: (status_push_tokens | length > 0) or status_push_token_file.stat.exists
+    fail_msg: >-
+      Pass status_push_tokens with -e @file from a tmpfs copy of inventory/secrets/status-push.sops.yml. The file must
+      hold a variable called status_push_tokens with the monitor names indented under it (see the role's defaults).
+    quiet: true
+
+# A name in the monitors with no token would be skipped at run time, which looks like a quiet monitor: refuse it now.
+- name: Check every monitor has a token
+  ansible.builtin.assert:
+    that: (status_push_monitors | map(attribute='name') | difference(status_push_tokens.keys() | list)) | length == 0
+    fail_msg: >-
+      No token for: {{ status_push_monitors | map(attribute='name') | difference(status_push_tokens.keys() | list) | join(', ') }}.
+      Add each as a key of status_push_tokens in inventory/secrets/status-push.sops.yml.
+    quiet: true
+  when: status_push_tokens | length > 0
+
+- name: Create the configuration directory
+  ansible.builtin.file:
+    path: /etc/status-push
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the runner
+  ansible.builtin.copy:
+    src: status-push.py
+    dest: /usr/local/bin/status-push
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the configuration
+  ansible.builtin.copy:
+    content: "{{ {'base_url': status_push_base_url, 'monitors': status_push_monitors} | to_nice_json }}\n"
+    dest: /etc/status-push/config.json
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Store the tokens
+  ansible.builtin.copy:
+    content: "{{ status_push_tokens | to_nice_json }}\n"
+    dest: /etc/status-push/tokens.json
+    owner: root
+    group: root
+    mode: "0600"
+  when: status_push_tokens | length > 0
+  no_log: true
+
+- name: Install the service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - status-push.service
+    - status-push.timer
+  notify: Reload systemd for status push
+
+- name: Apply the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the timer
+  ansible.builtin.systemd_service:
+    name: status-push.timer
+    enabled: true
+    state: started

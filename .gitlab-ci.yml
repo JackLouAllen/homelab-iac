@@ -69,6 +69,7 @@ python-tests:
     - python3 -I scripts/test-gitlab-audit.py
     - python3 -I scripts/test-gitlab-mirror-check.py --offline
     - python3 -I scripts/test-runner-config.py
+    - python3 -I scripts/test-status-push.py
     - python3 -I scripts/test-pipeline.py
 
 # The edge nginx configuration, rendered from the role and exercised for real: the allow-lists, the master-realm

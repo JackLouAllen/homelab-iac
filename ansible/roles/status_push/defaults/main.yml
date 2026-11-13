@@ -1,0 +1,24 @@
+---
+# Local health checks, reported to push monitors in Uptime Kuma (the uptime_kuma and portfolio roles on ovh1). A timer
+# runs status-push every minute: it tests this host and posts each result to https://<status name>/api/push/<token>.
+# Kuma marks a push monitor down when the pushes stop, so a dead host, a dead timer or a broken network path raises
+# the alarm without anything here. The push monitors are created by hand in Kuma and kept off the public status page.
+status_push_base_url: https://status.jacklouallen.info
+# How often it runs. Each push monitor in Kuma needs a heartbeat interval of at least twice this (120 s for a minute).
+status_push_interval: 1min
+
+# One entry per push monitor in Kuma. "name" is the key of the monitor's token in status_push_tokens, so it must be
+# the same in both. "tests" must all pass for the monitor to be up; see scripts/test-status-push.py and the runner's own
+# header (files/status-push.py) for the kinds: systemd, tcp, http and disk.
+status_push_monitors: []
+
+# Supplied at run time with -e @file from a tmpfs copy of inventory/secrets/status-push.sops.yml, which must hold this
+# one variable (a bare list of names would become variables of those names, and this one would stay empty):
+#
+#   status_push_tokens:
+#     wazuh-stack: <token>
+#     oci1-disk: <token>
+#
+# Each key is a monitor name from status_push_monitors and each value is the token Kuma shows on that push monitor (the
+# last part of its push URL). The file on the host is root-only and reaches the service as a systemd credential.
+status_push_tokens: {}
